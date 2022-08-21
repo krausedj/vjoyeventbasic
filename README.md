@@ -2,7 +2,7 @@
 This project uses vjoy + mingw64 (msys2 specifically) + cmake to build a **hello world** application.
 
 ## narrative
-At this point, a linux/posix developer.  I want to ultimatly foward events from a rPi, basically add a socket to [evtest.c](https://elinux.org/images/9/93/Evtest.c) and play it back in windows.
+At this point, I am a linux/posix developer.  I want to ultimatly foward events from a rPi, basically add a socket to [evtest.c](https://elinux.org/images/9/93/Evtest.c) and play it back in windows.
 
 ## install
 - https://github.com/jshafer817/vJoy/releases/tag/v2.1.9.1
