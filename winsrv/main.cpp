@@ -1,10 +1,28 @@
 
 #include "vjoywrapper.h"
+#include "winsockwrapper.hpp"
 #include <iostream>
 #include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h> 
+//#include <sys/socket.h>
+//#include <netinet/in.h>
+
+constexpr int RX_BUF_LENGTH = 512;
 
 int main()
 {
+    SockSimple test{};
+    int rx_length = 0;
+    char buffer_data[RX_BUF_LENGTH];
+    test.WaitForConnection();
+    do
+    {
+        rx_length = test.ReceiveData(buffer_data, RX_BUF_LENGTH);
+    } while (rx_length > 0);
+    test.Close();
     std::cout << GetvJoyVersion() << std::endl;
     std::cout << AcquireVJD(1) << std::endl;
     // This function does not seem to work, or the descriptions does not do what I expect from the header file
