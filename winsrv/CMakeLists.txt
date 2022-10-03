@@ -5,6 +5,7 @@ endif(COMMAND cmake_policy)
 
 
 include_directories(vjoy/inc)
+include_directories(../shared)
 
 project(eventforward)
 
@@ -19,6 +20,6 @@ add_library(winsockwrapper SHARED
 )
 target_link_libraries(winsockwrapper ws2_32)
 
-add_executable(app main.cpp)
+add_executable(app main.cpp ../shared/crc_32.c)
 target_compile_features(app PRIVATE cxx_std_17)
 target_link_libraries(app vjoyinterface winsockwrapper)
