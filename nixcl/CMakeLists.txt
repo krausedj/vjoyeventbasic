@@ -5,5 +5,7 @@ endif(COMMAND cmake_policy)
 
 project(nixcl)
 
-add_executable(nixcl main.c)
+include_directories(../shared)
+
+add_executable(nixcl main.cpp keymap.c ../shared/crc_32.c)
 target_compile_features(nixcl PRIVATE cxx_std_17)

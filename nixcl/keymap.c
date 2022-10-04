@@ -1,5 +1,6 @@
 
-#include "keymap.h" 
+#include "keymap.h"
+#include <string.h>
 
 char *events[EV_MAX + 1] = {
 	[0 ... EV_MAX] = NULL,

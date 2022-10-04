@@ -142,7 +142,7 @@ inline void HeaderLoad(HeaderT &output, HeaderNetT &input){
 inline int PackData(void * buf, size_t buf_len, NetModeT mode, void * data, uint32_t data_len){
     /* Check space to unpack */
     if (buf_len < (data_len + sizeof(HeaderNetT))){
-        return 1;
+        return 0;
     }
 
     HeaderT header;
@@ -160,7 +160,7 @@ inline int PackData(void * buf, size_t buf_len, NetModeT mode, void * data, uint
         memcpy(&(static_cast<char *>(buf)[sizeof(HeaderNetT)]), data, data_len);
     }
 
-    return 0;
+    return data_len + sizeof(HeaderNetT);
 }
 
 inline int CheckHeader(void * buf, size_t buf_len){
