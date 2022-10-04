@@ -1,7 +1,11 @@
 
 #include <stdint.h>
 #include <string.h>
+#ifdef WIN32
 #include <sys/time.h>
+#else
+#include <time.h>
+#endif
 #include "crc.h"
 
 namespace vjoy_event_net {
