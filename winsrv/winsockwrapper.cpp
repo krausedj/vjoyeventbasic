@@ -116,7 +116,7 @@ int SockSimple::ReceiveData(void * buffer, const int buffer_len){
             printf("send failed with error: %d\n", WSAGetLastError());
             closesocket(DATA->ClientSocket);
             WSACleanup();
-            return 1;
+            return -1;
         }
         printf("Bytes sent: %d\n", iSendResult);
     }
@@ -126,7 +126,7 @@ int SockSimple::ReceiveData(void * buffer, const int buffer_len){
         printf("recv failed with error: %d\n", WSAGetLastError());
         closesocket(DATA->ClientSocket);
         WSACleanup();
-        return 1;
+        return -1;
     }
 
     return iResult;

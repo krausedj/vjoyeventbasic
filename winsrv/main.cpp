@@ -8,12 +8,32 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h> 
+#include <stdInt.h>
 //#include <sys/socket.h>
 //#include <netinet/in.h>
 
 constexpr int RX_BUF_LENGTH = 8192;
 
 namespace vjn = vjoy_event_net;
+
+int key_to_btn[][2] = {
+    { 304, 1 }, //A
+    { 305, 2 }, //B
+    { 307, 3 }, //X
+    { 308, 4 }, //Y
+    { 310, 5 }, //TL
+    { 311, 6 }, //TR
+    { 317, 7 }, //ThumbL
+    { 318, 8 }, //ThumbR
+    { 158, 9 }, //Select
+    { 315, 10}, //Start
+    { 316, 11}  //Mode
+};
+
+constexpr int key_to_btn_len = sizeof(key_to_btn)/(sizeof(int)*2);
+
+constexpr int InputEvent_CodeKey = 1;
+constexpr int InputEvent_Absolute = 3;
 
 int main()
 {
@@ -24,6 +44,25 @@ int main()
     char buffer_data[RX_BUF_LENGTH];
     char * buf_start = buffer_data;
     int buf_len = RX_BUF_LENGTH;
+
+    std::cout << GetvJoyVersion() << std::endl;
+    std::cout << AcquireVJD(1) << std::endl;
+    // This function does not seem to work, or the descriptions does not do what I expect from the header file
+    std::cout << ResetVJD(1) << std::endl;
+    // This function seems to work
+    std::cout << ResetButtons(1) << std::endl;
+    // I never set and Povs, so who knows
+    std::cout << ResetPovs(1) << std::endl;
+
+    SetAxis(INT16_MAX/2, 1, HID_USAGE_X);
+    SetAxis(INT16_MAX/2, 1, HID_USAGE_Y);
+    SetAxis(INT16_MAX/2, 1, HID_USAGE_Z);
+    SetAxis(0, 1, HID_USAGE_RX);
+    SetAxis(0, 1, HID_USAGE_RX);
+    SetAxis(INT16_MAX/2, 1, HID_USAGE_RZ);
+    SetAxis(0, 1, HID_USAGE_SL0);
+    SetAxis(0, 1, HID_USAGE_SL1);
+
     test.WaitForConnection();
     do
     {
@@ -84,6 +123,71 @@ int main()
                         std::cout << "    code: " << input_event.code << std::endl;
                         std::cout << "    value: " << input_event.value << std::endl;
                         ev_buf_ptr = &ev_buf_ptr[sizeof(vjn::InputEventNetT)];
+                        //Check for buttons
+                        if (input_event.type == InputEvent_CodeKey){
+                            for (int index = 0; index < key_to_btn_len; index++){
+                                if (input_event.code == key_to_btn[index][0]){
+                                    SetBtn(input_event.value, 1, key_to_btn[index][1]);
+                                    break;
+                                }
+                            }
+                        }
+                        else if (input_event.type == InputEvent_Absolute){
+                            if (input_event.code == 0)
+                            {
+                                SetAxis(input_event.value * 32767/65535, 1, HID_USAGE_X);
+                            }
+                            else if (input_event.code == 1)
+                            {
+                                SetAxis(input_event.value * 32767/65535, 1, HID_USAGE_Y);
+                            }
+                            else if (input_event.code == 2)
+                            {
+                                SetAxis(input_event.value * 32767/65535, 1, HID_USAGE_Z);
+                            }
+                            else if (input_event.code == 5)
+                            {
+                                SetAxis(input_event.value * 32767/65535, 1, HID_USAGE_RZ);
+                            }
+                            else if (input_event.code == 10)
+                            {
+                                SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_SL0);
+                            }
+                            else if (input_event.code == 9)
+                            {
+                                SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_SL1);
+                            }
+                            else if (input_event.code == 16)
+                            {
+                                if (input_event.value == -1){
+                                    SetBtn(1, 1, 125);
+                                    SetBtn(0, 1, 126);
+                                }
+                                else if (input_event.value == 1){
+                                    SetBtn(0, 1, 125);
+                                    SetBtn(1, 1, 126);
+                                }
+                                else{
+                                    SetBtn(0, 1, 125);
+                                    SetBtn(0, 1, 126);
+                                }
+                            }
+                            else if (input_event.code == 17)
+                            {
+                                if (input_event.value == -1){
+                                    SetBtn(1, 1, 127);
+                                    SetBtn(0, 1, 128);
+                                }
+                                else if (input_event.value == 1){
+                                    SetBtn(0, 1, 127);
+                                    SetBtn(1, 1, 128);
+                                }
+                                else{
+                                    SetBtn(0, 1, 127);
+                                    SetBtn(0, 1, 128);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -92,29 +196,20 @@ int main()
     } while (rx_length > 0);
     
     test.Close();
-    std::cout << GetvJoyVersion() << std::endl;
-    std::cout << AcquireVJD(1) << std::endl;
-    // This function does not seem to work, or the descriptions does not do what I expect from the header file
-    std::cout << ResetVJD(1) << std::endl;
-    usleep(2000000);
 
-    // Hit some buttons, can view in vJoyMonitor
-    SetBtn(1, 1, 1);
-    SetBtn(1, 1, 2);
-    SetBtn(1, 1, 3);
-
-    usleep(5000000);
-
-    // This function also does not seem to work
-    std::cout << "ResetAll();" << std::endl;
-    ResetAll();
-    usleep(2000000);
     // This function seems to work
     std::cout << ResetButtons(1) << std::endl;
-    usleep(2000000);
     // I never set and Povs, so who knows
     std::cout << ResetPovs(1) << std::endl;
-    usleep(2000000);
+
+    SetAxis(INT16_MAX, 1, HID_USAGE_X);
+    SetAxis(INT16_MAX, 1, HID_USAGE_Y);
+    SetAxis(INT16_MAX, 1, HID_USAGE_Z);
+    SetAxis(0, 1, HID_USAGE_RX);
+    SetAxis(0, 1, HID_USAGE_RX);
+    SetAxis(INT16_MAX, 1, HID_USAGE_RZ);
+    SetAxis(0, 1, HID_USAGE_SL0);
+    SetAxis(0, 1, HID_USAGE_SL1);
     
     RelinquishVJD(1);
     return 0;
