@@ -17,17 +17,23 @@ constexpr int RX_BUF_LENGTH = (1024 * 1024);
 namespace vjn = vjoy_event_net;
 
 int key_to_btn[][2] = {
-    { 304, 1 }, //A
-    { 305, 2 }, //B
-    { 307, 3 }, //X
-    { 308, 4 }, //Y
-    { 310, 5 }, //TL
-    { 311, 6 }, //TR
-    { 317, 7 }, //ThumbL
-    { 318, 8 }, //ThumbR
-    { 158, 9 }, //Select
-    { 315, 10}, //Start
-    { 316, 11}  //Mode
+    { 28, 1 },
+    { 240, 2 },
+    { 304, 3 },
+    { 305, 4 },
+    { 307, 5 },
+    { 308, 6 },
+    { 310, 7 },
+    { 311, 8 },
+    { 314, 9 },
+    { 315, 10 },
+    { 316, 11 },
+    { 317, 12 },
+    { 318, 13 },
+    { 740, 14 },
+    { 741, 15 },
+    { 742, 16 },
+    { 743, 17 }
 };
 
 constexpr int key_to_btn_len = sizeof(key_to_btn)/(sizeof(int)*2);
@@ -56,10 +62,10 @@ int main()
 
     SetAxis(INT16_MAX/2, 1, HID_USAGE_X);
     SetAxis(INT16_MAX/2, 1, HID_USAGE_Y);
-    SetAxis(INT16_MAX/2, 1, HID_USAGE_Z);
-    SetAxis(0, 1, HID_USAGE_RX);
-    SetAxis(0, 1, HID_USAGE_RX);
-    SetAxis(INT16_MAX/2, 1, HID_USAGE_RZ);
+    SetAxis(0, 1, HID_USAGE_Z);
+    SetAxis(INT16_MAX/2, 1, HID_USAGE_RX);
+    SetAxis(INT16_MAX/2, 1, HID_USAGE_RY);
+    SetAxis(0, 1, HID_USAGE_RZ);
     SetAxis(0, 1, HID_USAGE_SL0);
     SetAxis(0, 1, HID_USAGE_SL1);
 
@@ -102,12 +108,12 @@ int main()
                 // Reset buffer
                 buf_start = buffer_data;
                 buf_len = RX_BUF_LENGTH;
-                std::cout << "HeaderT:" << std::endl;
-                std::cout << "  mode: " << header.mode << std::endl;
-                std::cout << "  ts: " << header.ts << std::endl;
-                std::cout << "  length: " << header.length << std::endl;
-                std::cout << "  length_inverse: " << header.length_inverse << std::endl;
-                std::cout << "  crc: " << header.crc << std::endl;
+                // std::cout << "HeaderT:" << std::endl;
+                // std::cout << "  mode: " << header.mode << std::endl;
+                // std::cout << "  ts: " << header.ts << std::endl;
+                // std::cout << "  length: " << header.length << std::endl;
+                // std::cout << "  length_inverse: " << header.length_inverse << std::endl;
+                // std::cout << "  crc: " << header.crc << std::endl;
                 if (header.mode == vjn::NetModeT_INPUT_EVENT){
                     int total_events = extracted / sizeof(vjn::InputEventNetT);
                     std::cout << "Decoding " << total_events << " Input Events:" << std::endl;
@@ -116,12 +122,14 @@ int main()
                     for(int ev_index = 0; ev_index < total_events; ev_index++){
                         vjn::InputEventT input_event;
                         vjn::EventLoad(input_event, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(ev_buf_ptr))));
-                        std::cout << "  Input Event:" << std::endl;
-                        std::cout << "    tv_sec: " << input_event.tv_sec << std::endl;
-                        std::cout << "    tv_usec: " << input_event.tv_usec << std::endl;
-                        std::cout << "    type: " << input_event.type << std::endl;
-                        std::cout << "    code: " << input_event.code << std::endl;
-                        std::cout << "    value: " << input_event.value << std::endl;
+                        if (input_event.tv_sec){
+                            std::cout << "  Input Event:" << std::endl;
+                            std::cout << "    tv_sec: " << input_event.tv_sec << std::endl;
+                            std::cout << "    tv_usec: " << input_event.tv_usec << std::endl;
+                            std::cout << "    type: " << input_event.type << std::endl;
+                            std::cout << "    code: " << input_event.code << std::endl;
+                            std::cout << "    value: " << input_event.value << std::endl;
+                        }
                         ev_buf_ptr = &ev_buf_ptr[sizeof(vjn::InputEventNetT)];
                         //Check for buttons
                         if (input_event.type == InputEvent_CodeKey){
@@ -135,27 +143,31 @@ int main()
                         else if (input_event.type == InputEvent_Absolute){
                             if (input_event.code == 0)
                             {
-                                SetAxis(input_event.value * 32767/65535, 1, HID_USAGE_X);
+                                SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_X);
                             }
                             else if (input_event.code == 1)
                             {
-                                SetAxis(input_event.value * 32767/65535, 1, HID_USAGE_Y);
+                                SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_Y);
                             }
                             else if (input_event.code == 2)
                             {
-                                SetAxis(input_event.value * 32767/65535, 1, HID_USAGE_Z);
+                                SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_SL0);
+                            }
+                            else if (input_event.code == 3)
+                            {
+                                SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_RX);
+                            }
+                            else if (input_event.code == 4)
+                            {
+                                SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_RY);
                             }
                             else if (input_event.code == 5)
                             {
-                                SetAxis(input_event.value * 32767/65535, 1, HID_USAGE_RZ);
-                            }
-                            else if (input_event.code == 10)
-                            {
-                                SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_SL0);
-                            }
-                            else if (input_event.code == 9)
-                            {
                                 SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_SL1);
+                            }
+                            else if (input_event.code == 40)
+                            {
+                                //SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_Z);
                             }
                             else if (input_event.code == 16)
                             {
