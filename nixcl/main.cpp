@@ -43,7 +43,7 @@
 namespace vjn = vjoy_event_net;
 
 #define PORT 63245
-#define BUF_SIZE (512*1024)
+#define BUF_SIZE (1024*1024)
 #define INP_EVE_LEN 64
 
 #ifndef EV_SYN
@@ -68,6 +68,11 @@ int main (int argc, char **argv)
 	int abs[5];
 	int sock = 0, valread, client_fd;
     struct sockaddr_in serv_addr;
+	int scan_keys[KEY_CNT];
+	int scan_abs[KEY_CNT];
+	int total_keys = 0;
+	int total_abs = 0;
+	memset(scan_keys, sizeof(scan_keys), 0xFF);
 
 	//evtest
 	if (argc < 2) {
@@ -128,6 +133,7 @@ int main (int argc, char **argv)
 	printf("Supported events:\n");
 
 	for (i = 0; i < EV_MAX; i++)
+	{
 		if (test_bit(i, bit[0])) {
 			printf("  Event type %d (%s)\n", i, events[i] ? events[i] : "?");
 			if (!i) continue;
@@ -140,10 +146,16 @@ int main (int argc, char **argv)
 						for (k = 0; k < 5; k++)
 							if ((k < 3) || abs[k])
 								printf("      %s %6d\n", absval[k], abs[k]);
+						scan_abs[total_abs] = j;
+						total_abs++;
+					}
+					else if (i == EV_KEY) {
+						scan_keys[total_keys] = j;
+						total_keys++;
 					}
 				}
 		}
-		
+	}
 
 	printf("Testing ... (interrupt to exit)\n");
 
@@ -190,6 +202,59 @@ int main (int argc, char **argv)
 					names[ev[i].type] ? (names[ev[i].type][ev[i].code] ? names[ev[i].type][ev[i].code] : "?") : "?",
 					ev[i].value);
 			}	
+		}
+
+#if 0
+		//Perform a scan
+		memset(bit, 0, sizeof(bit));
+		ioctl(fd, EVIOCGBIT(0, EV_MAX), bit[0]);
+		printf("Supported events:\n");
+
+		for (i = 0; i < EV_MAX; i++)
+		{
+			if (test_bit(i, bit[0])) {
+				printf("  Event type %d (%s)\n", i, events[i] ? events[i] : "?");
+				if (!i) continue;
+				ioctl(fd, EVIOCGBIT(i, KEY_MAX), bit[i]);
+				for (j = 0; j < KEY_MAX; j++){
+					if (test_bit(j, bit[i])) {
+						printf("    Event code %d (%s)\n", j, names[i] ? (names[i][j] ? names[i][j] : "?") : "?");
+						if (i == EV_ABS) {
+							ioctl(fd, EVIOCGABS(j), abs);
+							for (k = 0; k < 5; k++)
+								if ((k < 3) || abs[k])
+									printf("      %s %6d\n", absval[k], abs[k]);
+						}
+					}
+				}
+			}
+		}
+#endif 
+		//Perform a scan
+		unsigned long keys[NBITS(KEY_MAX)];
+		memset(keys, 0, sizeof(keys));
+		ioctl(fd, EVIOCGKEY(KEY_MAX), keys);
+		vjn::InputEventT event_data;
+		for (i = 0; i < total_keys; i++) {
+			event_data.tv_sec = 0;
+			event_data.tv_usec = 0;
+			event_data.type = EV_KEY;
+			event_data.code = scan_keys[i];
+			event_data.value = test_bit(scan_keys[i], keys);
+			EventDump(event_data, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(data_ptr))));
+			data_ptr = &data_ptr[sizeof(vjn::InputEventNetT)];
+			data_size += sizeof(vjn::InputEventNetT);
+		}
+		for (i = 0; i < total_abs; i++) {
+			ioctl(fd, EVIOCGABS(scan_abs[i]), abs);
+			event_data.tv_sec = 0;
+			event_data.tv_usec = 0;
+			event_data.type = EV_ABS;
+			event_data.code = scan_abs[i];
+			event_data.value = abs[0];
+			EventDump(event_data, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(data_ptr))));
+			data_ptr = &data_ptr[sizeof(vjn::InputEventNetT)];
+			data_size += sizeof(vjn::InputEventNetT);
 		}
 
 		int tx_len = vjn::PackData(tx_buffer, BUF_SIZE, vjn::NetModeT_INPUT_EVENT, &tx_buffer[sizeof(vjn::HeaderNetT)], data_size);
