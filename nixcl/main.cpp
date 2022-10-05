@@ -43,7 +43,8 @@
 namespace vjn = vjoy_event_net;
 
 #define PORT 63245
-#define BUF_SIZE (16*1024)
+#define BUF_SIZE (512*1024)
+#define INP_EVE_LEN 64
 
 #ifndef EV_SYN
 #define EV_SYN 0
@@ -59,7 +60,7 @@ namespace vjn = vjoy_event_net;
 int main (int argc, char **argv)
 {
 	int fd, rd, i, j, k;
-	struct input_event ev[64];
+	struct input_event ev[INP_EVE_LEN];
 	int version;
 	unsigned short id[4];
 	unsigned long bit[EV_MAX][NBITS(KEY_MAX)];
@@ -67,7 +68,6 @@ int main (int argc, char **argv)
 	int abs[5];
 	int sock = 0, valread, client_fd;
     struct sockaddr_in serv_addr;
-    char buffer[4096] = { 0 };
 
 	//evtest
 	if (argc < 2) {
@@ -148,7 +148,7 @@ int main (int argc, char **argv)
 	printf("Testing ... (interrupt to exit)\n");
 
 	while (1) {
-		rd = read(fd, ev, sizeof(struct input_event) * 64);
+		rd = read(fd, ev, sizeof(struct input_event) * INP_EVE_LEN);
 
 		if (rd < (int) sizeof(struct input_event)) {
 			printf("yyy\n");
