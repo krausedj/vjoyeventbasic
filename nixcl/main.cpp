@@ -36,6 +36,9 @@
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/select.h>
 
 #include "keymap.h"
 #include "vjoy_event_net.hpp"
@@ -159,49 +162,68 @@ int main (int argc, char **argv)
 
 	printf("Testing ... (interrupt to exit)\n");
 
+	fd_set set;
+	struct timeval timeout;
+	int rv;
+
 	while (1) {
-		rd = read(fd, ev, sizeof(struct input_event) * INP_EVE_LEN);
-
-		if (rd < (int) sizeof(struct input_event)) {
-			printf("yyy\n");
-			perror("\nevtest: error reading");
-			return 1;
-		}
-
 		char tx_buffer[BUF_SIZE];
 		int data_size = 0;
 		char * data_ptr = &tx_buffer[sizeof(vjn::HeaderNetT)];
 
-		for (i = 0; i < rd / sizeof(struct input_event); i++){
+		FD_ZERO(&set); /* clear the set */
+		FD_SET(fd, &set); /* add our file descriptor to the set */
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 50000;
 
-			vjn::InputEventT event_data;
-			event_data.tv_sec = ev[i].time.tv_sec;
-			event_data.tv_usec = ev[i].time.tv_usec;
-			event_data.type = ev[i].type;
-			event_data.code = ev[i].code;
-			event_data.value = ev[i].value;
-			EventDump(event_data, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(data_ptr))));
-			data_ptr = &data_ptr[sizeof(vjn::InputEventNetT)];
-			data_size += sizeof(vjn::InputEventNetT);
+		rv = select(fd + 1, &set, NULL, NULL, &timeout);
+		if(rv == -1){
+			perror("select"); /* an error accured */
+			break;
+		}
+		else if(rv == 0){
+			//printf("timeout"); /* a timeout occured */
+		}
+		else{
+			rd = read(fd, ev, sizeof(struct input_event) * INP_EVE_LEN);
 
-			if (ev[i].type == EV_SYN) {
-				printf("Event: time %ld.%06ld, -------------- %s ------------\n",
-					ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].code ? "Config Sync" : "Report Sync" );
-			} else if (ev[i].type == EV_MSC && (ev[i].code == MSC_RAW || ev[i].code == MSC_SCAN)) {
-				printf("Event: time %ld.%06ld, type %d (%s), code %d (%s), value %02x\n",
-					ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].type,
-					events[ev[i].type] ? events[ev[i].type] : "?",
-					ev[i].code,
-					names[ev[i].type] ? (names[ev[i].type][ev[i].code] ? names[ev[i].type][ev[i].code] : "?") : "?",
-					ev[i].value);
-			} else {
-				printf("Event: time %ld.%06ld, type %d (%s), code %d (%s), value %d\n",
-					ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].type,
-					events[ev[i].type] ? events[ev[i].type] : "?",
-					ev[i].code,
-					names[ev[i].type] ? (names[ev[i].type][ev[i].code] ? names[ev[i].type][ev[i].code] : "?") : "?",
-					ev[i].value);
-			}	
+			if (rd < (int) sizeof(struct input_event)) {
+				printf("yyy\n");
+				perror("\nevtest: error reading");
+				return 1;
+			}
+
+			for (i = 0; i < rd / sizeof(struct input_event); i++){
+
+				vjn::InputEventT event_data;
+				event_data.tv_sec = ev[i].time.tv_sec;
+				event_data.tv_usec = ev[i].time.tv_usec;
+				event_data.type = ev[i].type;
+				event_data.code = ev[i].code;
+				event_data.value = ev[i].value;
+				EventDump(event_data, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(data_ptr))));
+				data_ptr = &data_ptr[sizeof(vjn::InputEventNetT)];
+				data_size += sizeof(vjn::InputEventNetT);
+
+				if (ev[i].type == EV_SYN) {
+					printf("Event: time %ld.%06ld, -------------- %s ------------\n",
+						ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].code ? "Config Sync" : "Report Sync" );
+				} else if (ev[i].type == EV_MSC && (ev[i].code == MSC_RAW || ev[i].code == MSC_SCAN)) {
+					printf("Event: time %ld.%06ld, type %d (%s), code %d (%s), value %02x\n",
+						ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].type,
+						events[ev[i].type] ? events[ev[i].type] : "?",
+						ev[i].code,
+						names[ev[i].type] ? (names[ev[i].type][ev[i].code] ? names[ev[i].type][ev[i].code] : "?") : "?",
+						ev[i].value);
+				} else {
+					printf("Event: time %ld.%06ld, type %d (%s), code %d (%s), value %d\n",
+						ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].type,
+						events[ev[i].type] ? events[ev[i].type] : "?",
+						ev[i].code,
+						names[ev[i].type] ? (names[ev[i].type][ev[i].code] ? names[ev[i].type][ev[i].code] : "?") : "?",
+						ev[i].value);
+				}	
+			}
 		}
 
 #if 0
