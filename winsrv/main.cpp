@@ -12,7 +12,7 @@
 //#include <sys/socket.h>
 //#include <netinet/in.h>
 
-constexpr int RX_BUF_LENGTH = 8192;
+constexpr int RX_BUF_LENGTH = (1024 * 1024);
 
 namespace vjn = vjoy_event_net;
 
