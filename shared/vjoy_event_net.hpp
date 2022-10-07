@@ -12,6 +12,7 @@ namespace vjoy_event_net {
 
 enum NetModeT: uint8_t {
     NetModeT_INPUT_EVENT = 0,
+    NetModeT_SCAN = 1,
     NetModeT_MAX
 };
 
@@ -48,6 +49,18 @@ typedef struct InputEventNetT_struct {
     uint8_t code[2];
     uint8_t value[4];
 } InputEventNetT;
+
+typedef struct ScanT_struct {
+    uint16_t type;
+    uint16_t code;
+    int32_t value;
+} ScanT;
+
+typedef struct ScanNetT_struct {
+    uint8_t type[2];
+    uint8_t code[2];
+    uint8_t value[4];
+} ScanNetT;
 
 inline void EventDump(InputEventT &input, InputEventNetT &output){
     int index;
@@ -89,6 +102,35 @@ inline void EventLoad(InputEventT &output, InputEventNetT &input){
     output.value = 0;
     for(index = 0; index < sizeof(input.value); index++){
         output.value |= (int32_t)(((uint32_t)input.value[index]) << (index * 8));
+    }
+}
+
+inline void ScanDump(ScanT &input, ScanNetT &output){
+   int index;
+    for(index = 0; index < sizeof(input.type); index++){
+        output.type[index] = (uint8_t)(input.type >> (index * 8));
+    }
+    for(index = 0; index < sizeof(input.code); index++){
+        output.code[index] = (uint8_t)(input.code >> (index * 8));
+    }
+    for(index = 0; index < sizeof(input.value); index++){
+        output.value[index] = (uint8_t)(input.value >> (index * 8));
+    }
+}
+
+inline void ScanLoad(ScanT &output, ScanNetT &input){
+    int index;
+    output.code = 0;
+    for(index = 0; index < sizeof(input.code); index++){
+        output.code |= ((uint16_t)input.code[index]) << (index * 8);
+    }
+    output.value = 0;
+    for(index = 0; index < sizeof(input.value); index++){
+        output.value |= (int32_t)(((uint32_t)input.value[index]) << (index * 8));
+    }
+    output.type = 0;
+    for(index = 0; index < sizeof(input.type); index++){
+        output.type |= ((uint16_t)input.type[index]) << (index * 8);
     }
 }
 

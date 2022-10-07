@@ -71,8 +71,8 @@ int main (int argc, char **argv)
 	int abs[5];
 	int sock = 0, valread, client_fd;
     struct sockaddr_in serv_addr;
-	int scan_keys[KEY_CNT];
-	int scan_abs[KEY_CNT];
+	vjn::ScanT scan_keys[KEY_CNT];
+	vjn::ScanT scan_abs[KEY_CNT];
 	int total_keys = 0;
 	int total_abs = 0;
 	memset(scan_keys, sizeof(scan_keys), 0xFF);
@@ -149,11 +149,13 @@ int main (int argc, char **argv)
 						for (k = 0; k < 5; k++)
 							if ((k < 3) || abs[k])
 								printf("      %s %6d\n", absval[k], abs[k]);
-						scan_abs[total_abs] = j;
+						scan_abs[total_abs].code = j;
+						scan_abs[total_abs].type = EV_ABS;
 						total_abs++;
 					}
 					else if (i == EV_KEY) {
-						scan_keys[total_keys] = j;
+						scan_keys[total_keys].code = j;
+						scan_keys[total_keys].type = EV_KEY;
 						total_keys++;
 					}
 				}
@@ -168,8 +170,44 @@ int main (int argc, char **argv)
 
 	while (1) {
 		char tx_buffer[BUF_SIZE];
+		int tx_len = 0;
+		int scan_size = 0;
+		char * scan_ptr = &tx_buffer[sizeof(vjn::HeaderNetT)];
+		int scan_tx_len = 0;
+		int event_tx_len = 0;
+
+		//Perform a scan before waiting for data
+		unsigned long keys[NBITS(KEY_MAX)];
+		memset(keys, 0, sizeof(keys));
+		ioctl(fd, EVIOCGKEY(KEY_MAX), keys);
+		for (i = 0; i < total_keys; i++) {
+			int32_t new_val = test_bit(scan_keys[i].code, keys);
+			//only send new data from last scan
+			if (new_val != scan_keys[i].value){
+				scan_keys[i].value = new_val;
+				ScanDump(scan_keys[i], *(static_cast<vjn::ScanNetT *>(static_cast<void *>(scan_ptr))));
+				scan_ptr = &scan_ptr[sizeof(vjn::ScanNetT)];
+				scan_size += sizeof(vjn::ScanNetT);
+			}
+		}
+		for (i = 0; i < total_abs; i++) {
+			ioctl(fd, EVIOCGABS(scan_abs[i].code), abs);
+			//only send new data from last scan
+			if (abs[0] != scan_abs[i].value){
+				scan_abs[i].value = abs[0];
+				ScanDump(scan_abs[i], *(static_cast<vjn::ScanNetT *>(static_cast<void *>(scan_ptr))));
+				scan_ptr = &scan_ptr[sizeof(vjn::ScanNetT)];
+				scan_size += sizeof(vjn::ScanNetT);
+			}
+		}
+
+		if (scan_size > 0){
+			scan_tx_len = vjn::PackData(tx_buffer, BUF_SIZE, vjn::NetModeT_SCAN, &tx_buffer[sizeof(vjn::HeaderNetT)], scan_size);
+			tx_len += scan_tx_len;
+		}
+
 		int data_size = 0;
-		char * data_ptr = &tx_buffer[sizeof(vjn::HeaderNetT)];
+		char * data_ptr = &tx_buffer[scan_tx_len + sizeof(vjn::HeaderNetT)];
 
 		FD_ZERO(&set); /* clear the set */
 		FD_SET(fd, &set); /* add our file descriptor to the set */
@@ -225,62 +263,13 @@ int main (int argc, char **argv)
 				}	
 			}
 		}
-
-#if 0
-		//Perform a scan
-		memset(bit, 0, sizeof(bit));
-		ioctl(fd, EVIOCGBIT(0, EV_MAX), bit[0]);
-		printf("Supported events:\n");
-
-		for (i = 0; i < EV_MAX; i++)
-		{
-			if (test_bit(i, bit[0])) {
-				printf("  Event type %d (%s)\n", i, events[i] ? events[i] : "?");
-				if (!i) continue;
-				ioctl(fd, EVIOCGBIT(i, KEY_MAX), bit[i]);
-				for (j = 0; j < KEY_MAX; j++){
-					if (test_bit(j, bit[i])) {
-						printf("    Event code %d (%s)\n", j, names[i] ? (names[i][j] ? names[i][j] : "?") : "?");
-						if (i == EV_ABS) {
-							ioctl(fd, EVIOCGABS(j), abs);
-							for (k = 0; k < 5; k++)
-								if ((k < 3) || abs[k])
-									printf("      %s %6d\n", absval[k], abs[k]);
-						}
-					}
-				}
-			}
+		if(data_size > 0){
+			event_tx_len = vjn::PackData(&tx_buffer[scan_tx_len], BUF_SIZE, vjn::NetModeT_INPUT_EVENT, &tx_buffer[scan_tx_len + sizeof(vjn::HeaderNetT)], data_size);
+			tx_len += event_tx_len;
 		}
-#endif 
-		//Perform a scan
-		unsigned long keys[NBITS(KEY_MAX)];
-		memset(keys, 0, sizeof(keys));
-		ioctl(fd, EVIOCGKEY(KEY_MAX), keys);
-		vjn::InputEventT event_data;
-		for (i = 0; i < total_keys; i++) {
-			event_data.tv_sec = 0;
-			event_data.tv_usec = 0;
-			event_data.type = EV_KEY;
-			event_data.code = scan_keys[i];
-			event_data.value = test_bit(scan_keys[i], keys);
-			EventDump(event_data, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(data_ptr))));
-			data_ptr = &data_ptr[sizeof(vjn::InputEventNetT)];
-			data_size += sizeof(vjn::InputEventNetT);
+		if (tx_len > 0){
+			send(sock, tx_buffer, tx_len, 0);
 		}
-		for (i = 0; i < total_abs; i++) {
-			ioctl(fd, EVIOCGABS(scan_abs[i]), abs);
-			event_data.tv_sec = 0;
-			event_data.tv_usec = 0;
-			event_data.type = EV_ABS;
-			event_data.code = scan_abs[i];
-			event_data.value = abs[0];
-			EventDump(event_data, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(data_ptr))));
-			data_ptr = &data_ptr[sizeof(vjn::InputEventNetT)];
-			data_size += sizeof(vjn::InputEventNetT);
-		}
-
-		int tx_len = vjn::PackData(tx_buffer, BUF_SIZE, vjn::NetModeT_INPUT_EVENT, &tx_buffer[sizeof(vjn::HeaderNetT)], data_size);
-		send(sock, tx_buffer, tx_len, 0);
 	}
 
 	// closing the connected socket
