@@ -108,8 +108,8 @@ int SockSimple::ReceiveData(void * buffer, const int buffer_len){
 
     iResult = recv(DATA->ClientSocket, static_cast<char *>(buffer), buffer_len, 0);
     if (iResult > 0) {
-        printf("Bytes received: %d\n", iResult);
 #if 0
+        printf("Bytes received: %d\n", iResult);
         // Echo the buffer back to the sender
         iSendResult = send( DATA->ClientSocket, static_cast<char *>(buffer), iResult, 0 );
         if (iSendResult == SOCKET_ERROR) {

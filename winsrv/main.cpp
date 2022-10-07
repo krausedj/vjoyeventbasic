@@ -41,6 +41,78 @@ constexpr int key_to_btn_len = sizeof(key_to_btn)/(sizeof(int)*2);
 constexpr int InputEvent_CodeKey = 1;
 constexpr int InputEvent_Absolute = 3;
 
+inline void HandleEvent(vjn::InputEventT input_event){
+    //Check for buttons
+    if (input_event.type == InputEvent_CodeKey){
+        for (int index = 0; index < key_to_btn_len; index++){
+            if (input_event.code == key_to_btn[index][0]){
+                SetBtn(input_event.value, 1, key_to_btn[index][1]);
+                break;
+            }
+        }
+    }
+    else if (input_event.type == InputEvent_Absolute){
+        if (input_event.code == 0)
+        {
+            SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_X);
+        }
+        else if (input_event.code == 1)
+        {
+            SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_Y);
+        }
+        else if (input_event.code == 2)
+        {
+            SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_SL0);
+        }
+        else if (input_event.code == 3)
+        {
+            SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_RX);
+        }
+        else if (input_event.code == 4)
+        {
+            SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_RY);
+        }
+        else if (input_event.code == 5)
+        {
+            SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_SL1);
+        }
+        else if (input_event.code == 40)
+        {
+            //SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_Z);
+        }
+        else if (input_event.code == 16)
+        {
+            if (input_event.value == -1){
+                SetBtn(1, 1, 125);
+                SetBtn(0, 1, 126);
+            }
+            else if (input_event.value == 1){
+                SetBtn(0, 1, 125);
+                SetBtn(1, 1, 126);
+            }
+            else{
+                SetBtn(0, 1, 125);
+                SetBtn(0, 1, 126);
+            }
+        }
+        else if (input_event.code == 17)
+        {
+            if (input_event.value == -1){
+                SetBtn(1, 1, 127);
+                SetBtn(0, 1, 128);
+            }
+            else if (input_event.value == 1){
+                SetBtn(0, 1, 127);
+                SetBtn(1, 1, 128);
+            }
+            else{
+                SetBtn(0, 1, 127);
+                SetBtn(0, 1, 128);
+            }
+        }
+    }
+}
+
 int main()
 {
     SockSimple test{};
@@ -108,99 +180,57 @@ int main()
                 // Reset buffer
                 buf_start = buffer_data;
                 buf_len = RX_BUF_LENGTH;
-                // std::cout << "HeaderT:" << std::endl;
-                // std::cout << "  mode: " << header.mode << std::endl;
-                // std::cout << "  ts: " << header.ts << std::endl;
-                // std::cout << "  length: " << header.length << std::endl;
-                // std::cout << "  length_inverse: " << header.length_inverse << std::endl;
-                // std::cout << "  crc: " << header.crc << std::endl;
-                if (header.mode == vjn::NetModeT_INPUT_EVENT){
-                    int total_events = extracted / sizeof(vjn::InputEventNetT);
-                    std::cout << "Decoding " << total_events << " Input Events:" << std::endl;
-                    // Loop through all avaliable events
-                    char * ev_buf_ptr = &work_buf[sizeof(vjn::HeaderNetT)];
-                    for(int ev_index = 0; ev_index < total_events; ev_index++){
-                        vjn::InputEventT input_event;
-                        vjn::EventLoad(input_event, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(ev_buf_ptr))));
-                        if (input_event.tv_sec){
-                            std::cout << "  Input Event:" << std::endl;
-                            std::cout << "    tv_sec: " << input_event.tv_sec << std::endl;
-                            std::cout << "    tv_usec: " << input_event.tv_usec << std::endl;
-                            std::cout << "    type: " << input_event.type << std::endl;
-                            std::cout << "    code: " << input_event.code << std::endl;
-                            std::cout << "    value: " << input_event.value << std::endl;
-                        }
-                        ev_buf_ptr = &ev_buf_ptr[sizeof(vjn::InputEventNetT)];
-                        //Check for buttons
-                        if (input_event.type == InputEvent_CodeKey){
-                            for (int index = 0; index < key_to_btn_len; index++){
-                                if (input_event.code == key_to_btn[index][0]){
-                                    SetBtn(input_event.value, 1, key_to_btn[index][1]);
-                                    break;
-                                }
-                            }
-                        }
-                        else if (input_event.type == InputEvent_Absolute){
-                            if (input_event.code == 0)
-                            {
-                                SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_X);
-                            }
-                            else if (input_event.code == 1)
-                            {
-                                SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_Y);
-                            }
-                            else if (input_event.code == 2)
-                            {
-                                SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_SL0);
-                            }
-                            else if (input_event.code == 3)
-                            {
-                                SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_RX);
-                            }
-                            else if (input_event.code == 4)
-                            {
-                                SetAxis((input_event.value + 32768) * 32767/65535, 1, HID_USAGE_RY);
-                            }
-                            else if (input_event.code == 5)
-                            {
-                                SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_SL1);
-                            }
-                            else if (input_event.code == 40)
-                            {
-                                //SetAxis(input_event.value * 32767/1023, 1, HID_USAGE_Z);
-                            }
-                            else if (input_event.code == 16)
-                            {
-                                if (input_event.value == -1){
-                                    SetBtn(1, 1, 125);
-                                    SetBtn(0, 1, 126);
-                                }
-                                else if (input_event.value == 1){
-                                    SetBtn(0, 1, 125);
-                                    SetBtn(1, 1, 126);
-                                }
-                                else{
-                                    SetBtn(0, 1, 125);
-                                    SetBtn(0, 1, 126);
-                                }
-                            }
-                            else if (input_event.code == 17)
-                            {
-                                if (input_event.value == -1){
-                                    SetBtn(1, 1, 127);
-                                    SetBtn(0, 1, 128);
-                                }
-                                else if (input_event.value == 1){
-                                    SetBtn(0, 1, 127);
-                                    SetBtn(1, 1, 128);
-                                }
-                                else{
-                                    SetBtn(0, 1, 127);
-                                    SetBtn(0, 1, 128);
-                                }
-                            }
+                while (extracted > 0){
+                    // std::cout << "HeaderT:" << std::endl;
+                    // std::cout << "  mode: " << header.mode << std::endl;
+                    // std::cout << "  ts: " << header.ts << std::endl;
+                    // std::cout << "  length: " << header.length << std::endl;
+                    // std::cout << "  length_inverse: " << header.length_inverse << std::endl;
+                    // std::cout << "  crc: " << header.crc << std::endl;
+                    if (header.mode == vjn::NetModeT_INPUT_EVENT){
+                        int total_events = extracted / sizeof(vjn::InputEventNetT);
+                        std::cout << "Decoding " << total_events << " Input Events:" << std::endl;
+                        // Loop through all avaliable events
+                        char * ev_buf_ptr = &work_buf[sizeof(vjn::HeaderNetT)];
+                        for(int ev_index = 0; ev_index < total_events; ev_index++){
+                            vjn::InputEventT input_event;
+                            vjn::EventLoad(input_event, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(ev_buf_ptr))));
+                            // std::cout << "  Input Event:" << std::endl;
+                            // std::cout << "    tv_sec: " << input_event.tv_sec << std::endl;
+                            // std::cout << "    tv_usec: " << input_event.tv_usec << std::endl;
+                            // std::cout << "    type: " << input_event.type << std::endl;
+                            // std::cout << "    code: " << input_event.code << std::endl;
+                            // std::cout << "    value: " << input_event.value << std::endl;
+                            ev_buf_ptr = &ev_buf_ptr[sizeof(vjn::InputEventNetT)];
+                            //Check for buttons
+                            HandleEvent(input_event);
                         }
                     }
+                    if (header.mode == vjn::NetModeT_SCAN){
+                        int total_events = extracted / sizeof(vjn::ScanNetT);
+                        //std::cout << "Decoding " << total_events << " Scan Items:" << std::endl;
+                        // Loop through all avaliable events
+                        char * ev_buf_ptr = &work_buf[sizeof(vjn::HeaderNetT)];
+                        for(int ev_index = 0; ev_index < total_events; ev_index++){
+                            vjn::ScanT input_scan;
+                            vjn::ScanLoad(input_scan, *(static_cast<vjn::ScanNetT *>(static_cast<void *>(ev_buf_ptr))));
+                            // std::cout << "  Scan:" << std::endl;
+                            // std::cout << "    type: " << input_scan.type << std::endl;
+                            // std::cout << "    code: " << input_scan.code << std::endl;
+                            // std::cout << "    value: " << input_scan.value << std::endl;
+                            ev_buf_ptr = &ev_buf_ptr[sizeof(vjn::ScanNetT)];
+                            //Convert to event for code reuse
+                            vjn::InputEventT input_event;
+                            input_event.type = input_scan.type;
+                            input_event.code = input_scan.code;
+                            input_event.value = input_scan.value;
+                            //Check for buttons
+                            HandleEvent(input_event);
+                        }
+                    }
+                    work_len = work_len - extracted - sizeof(vjn::HeaderNetT);
+                    work_buf = &work_buf[extracted + sizeof(vjn::HeaderNetT)];
+                    extracted = vjn::UnpackData(work_buf, work_len, header, &work_buf[sizeof(vjn::HeaderNetT)], work_len-sizeof(vjn::HeaderNetT));
                 }
             }
         }
