@@ -182,23 +182,17 @@ int main (int argc, char **argv)
 		ioctl(fd, EVIOCGKEY(KEY_MAX), keys);
 		for (i = 0; i < total_keys; i++) {
 			int32_t new_val = test_bit(scan_keys[i].code, keys);
-			//only send new data from last scan
-			if (new_val != scan_keys[i].value){
-				scan_keys[i].value = new_val;
-				ScanDump(scan_keys[i], *(static_cast<vjn::ScanNetT *>(static_cast<void *>(scan_ptr))));
-				scan_ptr = &scan_ptr[sizeof(vjn::ScanNetT)];
-				scan_size += sizeof(vjn::ScanNetT);
-			}
+			scan_keys[i].value = new_val;
+			ScanDump(scan_keys[i], *(static_cast<vjn::ScanNetT *>(static_cast<void *>(scan_ptr))));
+			scan_ptr = &scan_ptr[sizeof(vjn::ScanNetT)];
+			scan_size += sizeof(vjn::ScanNetT);
 		}
 		for (i = 0; i < total_abs; i++) {
 			ioctl(fd, EVIOCGABS(scan_abs[i].code), abs);
-			//only send new data from last scan
-			if (abs[0] != scan_abs[i].value){
-				scan_abs[i].value = abs[0];
-				ScanDump(scan_abs[i], *(static_cast<vjn::ScanNetT *>(static_cast<void *>(scan_ptr))));
-				scan_ptr = &scan_ptr[sizeof(vjn::ScanNetT)];
-				scan_size += sizeof(vjn::ScanNetT);
-			}
+			scan_abs[i].value = abs[0];
+			ScanDump(scan_abs[i], *(static_cast<vjn::ScanNetT *>(static_cast<void *>(scan_ptr))));
+			scan_ptr = &scan_ptr[sizeof(vjn::ScanNetT)];
+			scan_size += sizeof(vjn::ScanNetT);
 		}
 
 		if (scan_size > 0){
