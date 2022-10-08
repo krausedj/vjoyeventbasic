@@ -277,7 +277,7 @@ int main (int argc, char **argv)
 		}
 		if (tx_len > 0){
 			int act_tx = send(sock, tx_buffer, tx_len, 0);
-			printf("Sent %i bytes", act_tx);
+//			printf("Sent %i bytes", act_tx);
 		}
 	}
 
