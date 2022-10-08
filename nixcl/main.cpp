@@ -251,24 +251,24 @@ int main (int argc, char **argv)
 				data_ptr = &data_ptr[sizeof(vjn::InputEventNetT)];
 				data_size += sizeof(vjn::InputEventNetT);
 
-				if (ev[i].type == EV_SYN) {
-					printf("Event: time %ld.%06ld, -------------- %s ------------\n",
-						ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].code ? "Config Sync" : "Report Sync" );
-				} else if (ev[i].type == EV_MSC && (ev[i].code == MSC_RAW || ev[i].code == MSC_SCAN)) {
-					printf("Event: time %ld.%06ld, type %d (%s), code %d (%s), value %02x\n",
-						ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].type,
-						events[ev[i].type] ? events[ev[i].type] : "?",
-						ev[i].code,
-						names[ev[i].type] ? (names[ev[i].type][ev[i].code] ? names[ev[i].type][ev[i].code] : "?") : "?",
-						ev[i].value);
-				} else {
-					printf("Event: time %ld.%06ld, type %d (%s), code %d (%s), value %d\n",
-						ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].type,
-						events[ev[i].type] ? events[ev[i].type] : "?",
-						ev[i].code,
-						names[ev[i].type] ? (names[ev[i].type][ev[i].code] ? names[ev[i].type][ev[i].code] : "?") : "?",
-						ev[i].value);
-				}	
+				// if (ev[i].type == EV_SYN) {
+				// 	printf("Event: time %ld.%06ld, -------------- %s ------------\n",
+				// 		ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].code ? "Config Sync" : "Report Sync" );
+				// } else if (ev[i].type == EV_MSC && (ev[i].code == MSC_RAW || ev[i].code == MSC_SCAN)) {
+				// 	printf("Event: time %ld.%06ld, type %d (%s), code %d (%s), value %02x\n",
+				// 		ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].type,
+				// 		events[ev[i].type] ? events[ev[i].type] : "?",
+				// 		ev[i].code,
+				// 		names[ev[i].type] ? (names[ev[i].type][ev[i].code] ? names[ev[i].type][ev[i].code] : "?") : "?",
+				// 		ev[i].value);
+				// } else {
+				// 	printf("Event: time %ld.%06ld, type %d (%s), code %d (%s), value %d\n",
+				// 		ev[i].time.tv_sec, ev[i].time.tv_usec, ev[i].type,
+				// 		events[ev[i].type] ? events[ev[i].type] : "?",
+				// 		ev[i].code,
+				// 		names[ev[i].type] ? (names[ev[i].type][ev[i].code] ? names[ev[i].type][ev[i].code] : "?") : "?",
+				// 		ev[i].value);
+				// }	
 			}
 		}
 		if(data_size > 0){
@@ -276,7 +276,8 @@ int main (int argc, char **argv)
 			tx_len += data_tx_len;
 		}
 		if (tx_len > 0){
-			send(sock, tx_buffer, tx_len, 0);
+			int act_tx = send(sock, tx_buffer, tx_len, 0);
+			printf("Sent %i bytes", act_tx);
 		}
 	}
 
