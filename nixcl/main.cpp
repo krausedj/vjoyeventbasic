@@ -71,11 +71,13 @@ int main (int argc, char **argv)
 	int abs[5];
 	int sock = 0, valread, client_fd;
     struct sockaddr_in serv_addr;
-	vjn::ScanT scan_keys[KEY_CNT];
-	vjn::ScanT scan_abs[KEY_CNT];
+	vjn::ScanKeyT scan_keys[KEY_CNT];
+	vjn::ScanAbsT scan_abs[KEY_CNT];
 	int total_keys = 0;
 	int total_abs = 0;
+	uint32_t cntr = 0;
 	memset(scan_keys, sizeof(scan_keys), 0xFF);
+	memset(scan_abs, sizeof(scan_keys), 0xFF);
 
 	//evtest
 	if (argc < 2) {
@@ -94,7 +96,7 @@ int main (int argc, char **argv)
 		return 1;
 	}
 
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         printf("\n Socket creation error \n");
         return -1;
     }
@@ -150,12 +152,10 @@ int main (int argc, char **argv)
 							if ((k < 3) || abs[k])
 								printf("      %s %6d\n", absval[k], abs[k]);
 						scan_abs[total_abs].code = j;
-						scan_abs[total_abs].type = EV_ABS;
 						total_abs++;
 					}
 					else if (i == EV_KEY) {
 						scan_keys[total_keys].code = j;
-						scan_keys[total_keys].type = EV_KEY;
 						total_keys++;
 					}
 				}
@@ -171,37 +171,51 @@ int main (int argc, char **argv)
 	while (1) {
 		char tx_buffer[BUF_SIZE];
 		int tx_len = 0;
-		int scan_size = 0;
-		char * scan_ptr = &tx_buffer[sizeof(vjn::HeaderNetT)];
-		int scan_tx_len = 0;
-		int event_tx_len = 0;
 
-		//Perform a scan before waiting for data
+		int key_data_size = 0;
+		char * key_ptr = &tx_buffer[sizeof(vjn::HeaderNetT)];
+		int key_tx_len = 0;
+
+		//Perform a key scan before waiting for data
 		unsigned long keys[NBITS(KEY_MAX)];
 		memset(keys, 0, sizeof(keys));
 		ioctl(fd, EVIOCGKEY(KEY_MAX), keys);
 		for (i = 0; i < total_keys; i++) {
 			int32_t new_val = test_bit(scan_keys[i].code, keys);
 			scan_keys[i].value = new_val;
-			ScanDump(scan_keys[i], *(static_cast<vjn::ScanNetT *>(static_cast<void *>(scan_ptr))));
-			scan_ptr = &scan_ptr[sizeof(vjn::ScanNetT)];
-			scan_size += sizeof(vjn::ScanNetT);
+			//Perform inline packing to tx buffer
+			ScanKeyDump(scan_keys[i], *(static_cast<vjn::ScanKeyNetT *>(static_cast<void *>(key_ptr))));
+			key_ptr = &key_ptr[sizeof(vjn::ScanKeyNetT)];
+			key_data_size += sizeof(vjn::ScanKeyNetT);
 		}
+
+		if (key_data_size > 0){
+			//Pass data ptr where data is already loaded to skip packing
+			key_tx_len = vjn::PackData(&tx_buffer[tx_len], BUF_SIZE, cntr, vjn::NetModeT_SCAN_KEY, &tx_buffer[tx_len + sizeof(vjn::HeaderNetT)], key_data_size);
+			tx_len += key_tx_len;
+		}
+
+		int abs_data_size = 0;
+		char * abs_ptr = &tx_buffer[tx_len + sizeof(vjn::HeaderNetT)];
+		int abs_tx_len = 0;
+
+		//Performa a scan of absolute values
 		for (i = 0; i < total_abs; i++) {
 			ioctl(fd, EVIOCGABS(scan_abs[i].code), abs);
 			scan_abs[i].value = abs[0];
-			ScanDump(scan_abs[i], *(static_cast<vjn::ScanNetT *>(static_cast<void *>(scan_ptr))));
-			scan_ptr = &scan_ptr[sizeof(vjn::ScanNetT)];
-			scan_size += sizeof(vjn::ScanNetT);
+			ScanAbsDump(scan_abs[i], *(static_cast<vjn::ScanAbsNetT *>(static_cast<void *>(abs_ptr))));
+			abs_ptr = &abs_ptr[sizeof(vjn::ScanAbsNetT)];
+			abs_data_size += sizeof(vjn::ScanAbsNetT);
 		}
 
-		if (scan_size > 0){
-			scan_tx_len = vjn::PackData(tx_buffer, BUF_SIZE, vjn::NetModeT_SCAN, &tx_buffer[sizeof(vjn::HeaderNetT)], scan_size);
-			tx_len += scan_tx_len;
+		if (abs_data_size > 0){
+			abs_tx_len = vjn::PackData(&tx_buffer[tx_len], BUF_SIZE, cntr, vjn::NetModeT_SCAN_ABS, &tx_buffer[tx_len + sizeof(vjn::HeaderNetT)], abs_data_size);
+			tx_len += abs_tx_len;
 		}
 
 		int data_size = 0;
-		char * data_ptr = &tx_buffer[scan_tx_len + sizeof(vjn::HeaderNetT)];
+		char * data_ptr = &tx_buffer[tx_len + sizeof(vjn::HeaderNetT)];
+		int data_tx_len = 0;
 
 		FD_ZERO(&set); /* clear the set */
 		FD_SET(fd, &set); /* add our file descriptor to the set */
@@ -258,8 +272,8 @@ int main (int argc, char **argv)
 			}
 		}
 		if(data_size > 0){
-			event_tx_len = vjn::PackData(&tx_buffer[scan_tx_len], BUF_SIZE, vjn::NetModeT_INPUT_EVENT, &tx_buffer[scan_tx_len + sizeof(vjn::HeaderNetT)], data_size);
-			tx_len += event_tx_len;
+			data_tx_len = vjn::PackData(&tx_buffer[tx_len], BUF_SIZE, cntr, vjn::NetModeT_INPUT_EVENT, &tx_buffer[tx_len + sizeof(vjn::HeaderNetT)], data_size);
+			tx_len += data_tx_len;
 		}
 		if (tx_len > 0){
 			send(sock, tx_buffer, tx_len, 0);

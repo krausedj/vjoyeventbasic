@@ -12,12 +12,14 @@ namespace vjoy_event_net {
 
 enum NetModeT: uint8_t {
     NetModeT_INPUT_EVENT = 0,
-    NetModeT_SCAN = 1,
+    NetModeT_SCAN_ABS = 1,
+    NetModeT_SCAN_KEY = 2,
     NetModeT_MAX
 };
 
 typedef struct HeaderT_struct {
     uint8_t mode;
+    uint32_t cntr;
     uint64_t ts;
     uint32_t crc;
     uint32_t length;
@@ -26,6 +28,7 @@ typedef struct HeaderT_struct {
 
 typedef struct HeaderNetT_struct {
     uint8_t mode[1];
+    uint8_t cntr[4];
     uint8_t ts[8];
     uint8_t crc[4];
     uint8_t length[4];
@@ -50,17 +53,25 @@ typedef struct InputEventNetT_struct {
     uint8_t value[4];
 } InputEventNetT;
 
-typedef struct ScanT_struct {
-    uint16_t type;
+typedef struct ScanAbsT_struct {
     uint16_t code;
     int32_t value;
-} ScanT;
+} ScanAbsT;
 
-typedef struct ScanNetT_struct {
-    uint8_t type[2];
+typedef struct ScanAbsNetT_struct {
     uint8_t code[2];
     uint8_t value[4];
-} ScanNetT;
+} ScanAbsNetT;
+
+typedef struct ScanKeyT_struct {
+    uint16_t code;
+    uint8_t value;
+} ScanKeyT;
+
+typedef struct ScanKeyNetT_struct {
+    uint8_t code[2];
+    uint8_t value[1];
+} ScanKeyNetT;
 
 inline void EventDump(InputEventT &input, InputEventNetT &output){
     int index;
@@ -105,11 +116,8 @@ inline void EventLoad(InputEventT &output, InputEventNetT &input){
     }
 }
 
-inline void ScanDump(ScanT &input, ScanNetT &output){
+inline void ScanAbsDump(ScanAbsT &input, ScanAbsNetT &output){
    int index;
-    for(index = 0; index < sizeof(input.type); index++){
-        output.type[index] = (uint8_t)(input.type >> (index * 8));
-    }
     for(index = 0; index < sizeof(input.code); index++){
         output.code[index] = (uint8_t)(input.code >> (index * 8));
     }
@@ -118,7 +126,7 @@ inline void ScanDump(ScanT &input, ScanNetT &output){
     }
 }
 
-inline void ScanLoad(ScanT &output, ScanNetT &input){
+inline void ScanAbsLoad(ScanAbsT &output, ScanAbsNetT &input){
     int index;
     output.code = 0;
     for(index = 0; index < sizeof(input.code); index++){
@@ -128,9 +136,27 @@ inline void ScanLoad(ScanT &output, ScanNetT &input){
     for(index = 0; index < sizeof(input.value); index++){
         output.value |= (int32_t)(((uint32_t)input.value[index]) << (index * 8));
     }
-    output.type = 0;
-    for(index = 0; index < sizeof(input.type); index++){
-        output.type |= ((uint16_t)input.type[index]) << (index * 8);
+}
+
+inline void ScanKeyDump(ScanKeyT &input, ScanKeyNetT &output){
+   int index;
+    for(index = 0; index < sizeof(input.code); index++){
+        output.code[index] = (uint8_t)(input.code >> (index * 8));
+    }
+    for(index = 0; index < sizeof(input.value); index++){
+        output.value[index] = (uint8_t)(input.value >> (index * 8));
+    }
+}
+
+inline void ScanAbsLoad(ScanKeyT &output, ScanKeyNetT &input){
+    int index;
+    output.code = 0;
+    for(index = 0; index < sizeof(input.code); index++){
+        output.code |= ((uint16_t)input.code[index]) << (index * 8);
+    }
+    output.value = 0;
+    for(index = 0; index < sizeof(input.value); index++){
+        output.value |= ((uint8_t)input.value[index]) << (index * 8);
     }
 }
 
@@ -138,6 +164,9 @@ inline void HeaderDump(HeaderT &input, HeaderNetT &output){
     int index;
     for(index = 0; index < sizeof(input.mode); index++){
         output.mode[index] = (uint8_t)(input.mode >> (index * 8));
+    }
+    for(index = 0; index < sizeof(input.cntr); index++){
+        output.cntr[index] = (uint8_t)(input.cntr >> (index * 8));
     }
     for(index = 0; index < sizeof(input.ts); index++){
         output.ts[index] = (uint8_t)(input.ts >> (index * 8));
@@ -159,9 +188,9 @@ inline void HeaderLoad(HeaderT &output, HeaderNetT &input){
     for(index = 0; index < sizeof(input.mode); index++){
         output.mode |= ((uint8_t)input.mode[index]) << (index * 8);
     }
-    output.ts = 0;
-    for(index = 0; index < sizeof(input.ts); index++){
-        output.ts |= ((uint8_t)input.ts[index]) << (index * 8);
+    output.cntr = 0;
+    for(index = 0; index < sizeof(input.cntr); index++){
+        output.cntr |= ((uint8_t)input.cntr[index]) << (index * 8);
     }
     output.ts = 0;
     for(index = 0; index < sizeof(input.ts); index++){
@@ -181,7 +210,7 @@ inline void HeaderLoad(HeaderT &output, HeaderNetT &input){
     }
 }
 
-inline int PackData(void * buf, size_t buf_len, NetModeT mode, void * data, uint32_t data_len){
+inline int PackData(void * buf, size_t buf_len, uint32_t &cntr, NetModeT mode, void * data, uint32_t data_len){
     /* Check space to unpack */
     if (buf_len < (data_len + sizeof(HeaderNetT))){
         return 0;
@@ -190,6 +219,7 @@ inline int PackData(void * buf, size_t buf_len, NetModeT mode, void * data, uint
     HeaderT header;
     struct timespec tv;
     clock_gettime(CLOCK_REALTIME, &tv);
+    header.cntr = cntr++;
     header.ts = tv.tv_sec*1000000000ull + tv.tv_nsec;
     header.mode = mode;
     header.length = data_len;
@@ -223,7 +253,7 @@ inline int CheckHeader(void * buf, size_t buf_len){
 // Return bytes read into the data buffer
 // -1 means an input buffer is to small for the header
 // -2 means data problems
-inline int UnpackData(void * buf, size_t buf_len, HeaderT &header, void * data, uint32_t data_len){
+inline int UnpackData(void * buf, size_t buf_len, uint32_t &cntr, HeaderT &header, void * data, uint32_t data_len){
     /* Check buffer is large enough to extract header */
     if (buf_len < sizeof(HeaderNetT)){
         return -1;
@@ -251,6 +281,7 @@ inline int UnpackData(void * buf, size_t buf_len, HeaderT &header, void * data, 
     if (crc != header.crc){
         return -2;
     }
+    cntr = header.cntr;
     return header.length;
 }
 
