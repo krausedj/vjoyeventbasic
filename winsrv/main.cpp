@@ -83,31 +83,31 @@ inline void HandleEvent(vjn::InputEventT input_event){
         else if (input_event.code == 16)
         {
             if (input_event.value == -1){
-                SetBtn(1, 1, 125);
-                SetBtn(0, 1, 126);
+                SetBtn(1, 1, 124);
+                SetBtn(0, 1, 125);
             }
             else if (input_event.value == 1){
-                SetBtn(0, 1, 125);
-                SetBtn(1, 1, 126);
+                SetBtn(0, 1, 124);
+                SetBtn(1, 1, 125);
             }
             else{
+                SetBtn(0, 1, 124);
                 SetBtn(0, 1, 125);
-                SetBtn(0, 1, 126);
             }
         }
         else if (input_event.code == 17)
         {
             if (input_event.value == -1){
-                SetBtn(1, 1, 127);
-                SetBtn(0, 1, 128);
+                SetBtn(1, 1, 126);
+                SetBtn(0, 1, 127);
             }
             else if (input_event.value == 1){
-                SetBtn(0, 1, 127);
-                SetBtn(1, 1, 128);
+                SetBtn(0, 1, 126);
+                SetBtn(1, 1, 127);
             }
             else{
+                SetBtn(0, 1, 126);
                 SetBtn(0, 1, 127);
-                SetBtn(0, 1, 128);
             }
         }
     }
@@ -119,9 +119,9 @@ int main()
     int rx_length = 0;
     int work_len = 0;
     char * work_buf;
-    char buffer_data[RX_BUF_LENGTH];
-    char * buf_start = buffer_data;
-    int buf_len = RX_BUF_LENGTH;
+    char rx_buffer[RX_BUF_LENGTH];
+    uint32_t cntr = 0;
+    uint32_t cntr_old = 0;
 
     std::cout << GetvJoyVersion() << std::endl;
     std::cout << AcquireVJD(1) << std::endl;
@@ -144,97 +144,114 @@ int main()
     test.WaitForConnection();
     do
     {
-        rx_length = test.ReceiveData(buf_start, buf_len);
+        rx_length = test.ReceiveData(rx_buffer, RX_BUF_LENGTH);
         work_len = rx_length;
-        work_buf = buffer_data;
+        work_buf = rx_buffer;
 
-        // Scan if there are errors till no data remains
-        int result = vjn::CheckHeader(work_buf, work_len);
-        while ((work_len > 0) && (0 != result))
-        {
-            work_buf++;
-            work_len--;
-            result = vjn::CheckHeader(work_buf, work_len);
-        }
-        if (result != 0){
-             std::cout << "No valid header found" << std::endl;
-        }
-        // Extract the data if there is enough data
-        if (0 == result){
-            vjn::HeaderT header;
-            int extracted = vjn::UnpackData(work_buf, work_len, header, &work_buf[sizeof(vjn::HeaderNetT)], work_len-sizeof(vjn::HeaderNetT));
-            if (extracted == -3){
-                // Not all data avaliable yet
-                std::cout << "Waiting for more data" << std::endl;
-                memcpy(buffer_data, work_buf, work_len);
-                buf_start = &buffer_data[work_len];
-                buf_len = RX_BUF_LENGTH-work_len;
+        while (work_len > 0){
+            // Scan if there are errors till no data remains
+            int result = vjn::CheckHeader(work_buf, work_len);
+            while ((work_len > 0) && (0 != result))
+            {
+                work_buf++;
+                work_len--;
+                result = vjn::CheckHeader(work_buf, work_len);
             }
-            else if (extracted < 0){
-                // Failure, try to recover
-                std::cout << "Error, header corrupt or data corrupt" << std::endl;
-                buf_start = buffer_data;
-                buf_len = RX_BUF_LENGTH;
+            if (result != 0){
+                std::cout << "No valid header found" << std::endl;
             }
-            else{
-                // Reset buffer
-                buf_start = buffer_data;
-                buf_len = RX_BUF_LENGTH;
-                while (extracted > 0){
-                    // std::cout << "HeaderT:" << std::endl;
-                    // std::cout << "  mode: " << header.mode << std::endl;
-                    // std::cout << "  ts: " << header.ts << std::endl;
-                    // std::cout << "  length: " << header.length << std::endl;
-                    // std::cout << "  length_inverse: " << header.length_inverse << std::endl;
-                    // std::cout << "  crc: " << header.crc << std::endl;
-                    if (header.mode == vjn::NetModeT_INPUT_EVENT){
-                        int total_events = extracted / sizeof(vjn::InputEventNetT);
-                        std::cout << "Decoding " << total_events << " Input Events:" << std::endl;
-                        // Loop through all avaliable events
-                        char * ev_buf_ptr = &work_buf[sizeof(vjn::HeaderNetT)];
-                        for(int ev_index = 0; ev_index < total_events; ev_index++){
-                            vjn::InputEventT input_event;
-                            vjn::EventLoad(input_event, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(ev_buf_ptr))));
-                            // std::cout << "  Input Event:" << std::endl;
-                            // std::cout << "    tv_sec: " << input_event.tv_sec << std::endl;
-                            // std::cout << "    tv_usec: " << input_event.tv_usec << std::endl;
-                            // std::cout << "    type: " << input_event.type << std::endl;
-                            // std::cout << "    code: " << input_event.code << std::endl;
-                            // std::cout << "    value: " << input_event.value << std::endl;
-                            ev_buf_ptr = &ev_buf_ptr[sizeof(vjn::InputEventNetT)];
-                            //Check for buttons
-                            HandleEvent(input_event);
+            // Extract the data if there is enough data
+            if (0 == result){
+                vjn::HeaderT header;
+                int extracted = vjn::UnpackData(work_buf, work_len, cntr, header, &work_buf[sizeof(vjn::HeaderNetT)], work_len-sizeof(vjn::HeaderNetT));
+                if (extracted < 0){
+                    // Failure, try to recover
+                    std::cout << "Error, header corrupt or data corrupt or not all data received" << std::endl;
+                }
+                else{
+                    if ((cntr > cntr_old) || 
+                        /* Rollover */
+                       (    (cntr_old > (3 * (UINT32_MAX / 4))) && 
+                            (cntr < (UINT32_MAX / 4))) ){
+                        cntr_old = cntr;
+                        // std::cout << "HeaderT:" << std::endl;
+                        // std::cout << "  mode: " << header.mode << std::endl;
+                        // std::cout << "  ts: " << header.ts << std::endl;
+                        // std::cout << "  length: " << header.length << std::endl;
+                        // std::cout << "  length_inverse: " << header.length_inverse << std::endl;
+                        // std::cout << "  crc: " << header.crc << std::endl;
+                        if (header.mode == vjn::NetModeT_INPUT_EVENT){
+                            int total_events = extracted / sizeof(vjn::InputEventNetT);
+                            std::cout << "Decoding " << total_events << " Input Events:" << std::endl;
+                            // Loop through all avaliable events
+                            char * ev_buf_ptr = &work_buf[sizeof(vjn::HeaderNetT)];
+                            for(int ev_index = 0; ev_index < total_events; ev_index++){
+                                vjn::InputEventT input_event;
+                                vjn::EventLoad(input_event, *(static_cast<vjn::InputEventNetT *>(static_cast<void *>(ev_buf_ptr))));
+                                // std::cout << "  Input Event:" << std::endl;
+                                // std::cout << "    tv_sec: " << input_event.tv_sec << std::endl;
+                                // std::cout << "    tv_usec: " << input_event.tv_usec << std::endl;
+                                // std::cout << "    type: " << input_event.type << std::endl;
+                                // std::cout << "    code: " << input_event.code << std::endl;
+                                // std::cout << "    value: " << input_event.value << std::endl;
+                                ev_buf_ptr = &ev_buf_ptr[sizeof(vjn::InputEventNetT)];
+                                //Check for buttons
+                                HandleEvent(input_event);
+                            }
                         }
-                    }
-                    if (header.mode == vjn::NetModeT_SCAN){
-                        int total_events = extracted / sizeof(vjn::ScanNetT);
-                        //std::cout << "Decoding " << total_events << " Scan Items:" << std::endl;
-                        // Loop through all avaliable events
-                        char * ev_buf_ptr = &work_buf[sizeof(vjn::HeaderNetT)];
-                        for(int ev_index = 0; ev_index < total_events; ev_index++){
-                            vjn::ScanT input_scan;
-                            vjn::ScanLoad(input_scan, *(static_cast<vjn::ScanNetT *>(static_cast<void *>(ev_buf_ptr))));
-                            // std::cout << "  Scan:" << std::endl;
-                            // std::cout << "    type: " << input_scan.type << std::endl;
-                            // std::cout << "    code: " << input_scan.code << std::endl;
-                            // std::cout << "    value: " << input_scan.value << std::endl;
-                            ev_buf_ptr = &ev_buf_ptr[sizeof(vjn::ScanNetT)];
-                            //Convert to event for code reuse
-                            vjn::InputEventT input_event;
-                            input_event.type = input_scan.type;
-                            input_event.code = input_scan.code;
-                            input_event.value = input_scan.value;
-                            //Check for buttons
-                            HandleEvent(input_event);
+                        else if (header.mode == vjn::NetModeT_SCAN_KEY){
+                            int total_events = extracted / sizeof(vjn::ScanKeyNetT);
+                            //std::cout << "Decoding " << total_events << " Scan Items:" << std::endl;
+                            // Loop through all avaliable events
+                            char * ev_buf_ptr = &work_buf[sizeof(vjn::HeaderNetT)];
+                            for(int ev_index = 0; ev_index < total_events; ev_index++){
+                                vjn::ScanKeyT input_scan;
+                                vjn::ScanKeyLoad(input_scan, *(static_cast<vjn::ScanKeyNetT *>(static_cast<void *>(ev_buf_ptr))));
+                                // std::cout << "  Scan:" << std::endl;
+                                // std::cout << "    type: " << input_scan.type << std::endl;
+                                // std::cout << "    code: " << input_scan.code << std::endl;
+                                // std::cout << "    value: " << input_scan.value << std::endl;
+                                ev_buf_ptr = &ev_buf_ptr[sizeof(vjn::ScanKeyNetT)];
+                                //Convert to event for code reuse
+                                vjn::InputEventT input_event;
+                                input_event.type = InputEvent_CodeKey;
+                                input_event.code = input_scan.code;
+                                input_event.value = input_scan.value;
+                                //Check for buttons
+                                HandleEvent(input_event);
+                            }
                         }
+                        else if (header.mode == vjn::NetModeT_SCAN_ABS){
+                            int total_events = extracted / sizeof(vjn::ScanAbsNetT);
+                            //std::cout << "Decoding " << total_events << " Scan Items:" << std::endl;
+                            // Loop through all avaliable events
+                            char * ev_buf_ptr = &work_buf[sizeof(vjn::HeaderNetT)];
+                            for(int ev_index = 0; ev_index < total_events; ev_index++){
+                                vjn::ScanAbsT input_scan;
+                                vjn::ScanAbsLoad(input_scan, *(static_cast<vjn::ScanAbsNetT *>(static_cast<void *>(ev_buf_ptr))));
+                                // std::cout << "  Scan:" << std::endl;
+                                // std::cout << "    type: " << input_scan.type << std::endl;
+                                // std::cout << "    code: " << input_scan.code << std::endl;
+                                // std::cout << "    value: " << input_scan.value << std::endl;
+                                ev_buf_ptr = &ev_buf_ptr[sizeof(vjn::ScanAbsNetT)];
+                                //Convert to event for code reuse
+                                vjn::InputEventT input_event;
+                                input_event.type = InputEvent_Absolute;
+                                input_event.code = input_scan.code;
+                                input_event.value = input_scan.value;
+                                //Check for buttons
+                                HandleEvent(input_event);
+                            }
+                        }
+                        work_len = work_len - extracted - sizeof(vjn::HeaderNetT);
+                        work_buf = &work_buf[extracted + sizeof(vjn::HeaderNetT)];
                     }
-                    work_len = work_len - extracted - sizeof(vjn::HeaderNetT);
-                    work_buf = &work_buf[extracted + sizeof(vjn::HeaderNetT)];
-                    extracted = vjn::UnpackData(work_buf, work_len, header, &work_buf[sizeof(vjn::HeaderNetT)], work_len-sizeof(vjn::HeaderNetT));
+                    else{
+                        //The counter is not newer
+                    }
                 }
             }
         }
-        
     } while (rx_length > 0);
     
     test.Close();
