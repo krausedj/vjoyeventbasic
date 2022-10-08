@@ -13,11 +13,10 @@
 #pragma comment (lib, "Ws2_32.lib")
 // #pragma comment (lib, "Mswsock.lib")
 
-#define DEFAULT_PORT "63245"
+#define DEFAULT_PORT 63245
 
 typedef struct{
-    SOCKET ListenSocket = INVALID_SOCKET;
-    SOCKET ClientSocket = INVALID_SOCKET;
+    SOCKET Socket = INVALID_SOCKET;
 } SockSimpleData;
 
 //Lazy pImpl implementation
@@ -33,72 +32,42 @@ SockSimple::~SockSimple(){
 }
 
 int SockSimple::WaitForConnection(){
-    WSADATA wsaData;
-    int iResult;
-    struct addrinfo *result = NULL;
-    struct addrinfo hints;
-    // Initialize Winsock
-    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
-    if (iResult != 0) {
-        printf("WSAStartup failed with error: %d\n", iResult);
+	struct sockaddr_in server, si_other;
+	int slen , recv_len;
+	WSADATA wsa;
+
+	slen = sizeof(si_other) ;
+	
+	//Initialise winsock
+	printf("\nInitialising Winsock...");
+	if (WSAStartup(MAKEWORD(2,2),&wsa) != 0)
+	{
+		printf("Failed. Error Code : %d",WSAGetLastError());
+		return 1;
+	}
+	printf("Initialised.\n");
+	
+	//Create a socket
+	if((DATA->Socket = socket(AF_INET , SOCK_DGRAM , 0 )) == INVALID_SOCKET)
+	{
+		printf("Could not create socket : %d" , WSAGetLastError());
         return 1;
-    }
-
-    ZeroMemory(&hints, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = IPPROTO_TCP;
-    hints.ai_flags = AI_PASSIVE;
-
-    // Resolve the server address and port
-    iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
-    if ( iResult != 0 ) {
-        printf("getaddrinfo failed with error: %d\n", iResult);
-        WSACleanup();
-        return 1;
-    }
-
-    // Create a SOCKET for the server to listen for client connections.
-    DATA->ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-    if (DATA->ListenSocket == INVALID_SOCKET) {
-        printf("socket failed with error: %ld\n", WSAGetLastError());
-        freeaddrinfo(result);
-        WSACleanup();
-        return 1;
-    }
-
-    // Setup the TCP listening socket
-    iResult = bind( DATA->ListenSocket, result->ai_addr, (int)result->ai_addrlen);
-    if (iResult == SOCKET_ERROR) {
-        printf("bind failed with error: %d\n", WSAGetLastError());
-        freeaddrinfo(result);
-        closesocket(DATA->ListenSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    freeaddrinfo(result);
-
-    iResult = listen(DATA->ListenSocket, SOMAXCONN);
-    if (iResult == SOCKET_ERROR) {
-        printf("listen failed with error: %d\n", WSAGetLastError());
-        closesocket(DATA->ListenSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    // Accept a client socket
-    DATA->ClientSocket = accept(DATA->ListenSocket, NULL, NULL);
-    if (DATA->ClientSocket == INVALID_SOCKET) {
-        printf("accept failed with error: %d\n", WSAGetLastError());
-        closesocket(DATA->ListenSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    // No longer need server socket
-    closesocket(DATA->ListenSocket);
-
+	}
+	printf("Socket created.\n");
+	
+	//Prepare the sockaddr_in structure
+	server.sin_family = AF_INET;
+	server.sin_addr.s_addr = INADDR_ANY;
+	server.sin_port = htons( DEFAULT_PORT );
+	
+	//Bind
+	if( bind(DATA->Socket ,(struct sockaddr *)&server , sizeof(server)) == SOCKET_ERROR)
+	{
+		printf("Bind failed with error code : %d" , WSAGetLastError());
+		return 1;
+	}
+	puts("Bind done");
+    
     return 0;
 }
 
@@ -106,7 +75,7 @@ int SockSimple::ReceiveData(void * buffer, const int buffer_len){
     int iResult;
     int iSendResult;
 
-    iResult = recv(DATA->ClientSocket, static_cast<char *>(buffer), buffer_len, 0);
+    iResult = recv(DATA->Socket, static_cast<char *>(buffer), buffer_len, 0);
     if (iResult > 0) {
 #if 0
         printf("Bytes received: %d\n", iResult);
@@ -125,7 +94,7 @@ int SockSimple::ReceiveData(void * buffer, const int buffer_len){
         printf("Connection closing...\n");
     else  {
         printf("recv failed with error: %d\n", WSAGetLastError());
-        closesocket(DATA->ClientSocket);
+        closesocket(DATA->Socket);
         WSACleanup();
         return -1;
     }
@@ -136,16 +105,16 @@ int SockSimple::ReceiveData(void * buffer, const int buffer_len){
 int SockSimple::Close(){
     int iResult;
     // shutdown the connection since we're done
-    iResult = shutdown(DATA->ClientSocket, SD_SEND);
+    iResult = shutdown(DATA->Socket, SD_SEND);
     if (iResult == SOCKET_ERROR) {
         printf("shutdown failed with error: %d\n", WSAGetLastError());
-        closesocket(DATA->ClientSocket);
+        closesocket(DATA->Socket);
         WSACleanup();
         return 1;
     }
 
     // cleanup
-    closesocket(DATA->ClientSocket);
+    closesocket(DATA->Socket);
     WSACleanup();
 
     return 0;

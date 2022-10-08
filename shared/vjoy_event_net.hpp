@@ -148,7 +148,7 @@ inline void ScanKeyDump(ScanKeyT &input, ScanKeyNetT &output){
     }
 }
 
-inline void ScanAbsLoad(ScanKeyT &output, ScanKeyNetT &input){
+inline void ScanKeyLoad(ScanKeyT &output, ScanKeyNetT &input){
     int index;
     output.code = 0;
     for(index = 0; index < sizeof(input.code); index++){
