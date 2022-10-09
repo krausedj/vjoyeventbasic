@@ -91,6 +91,7 @@ char *base64decode (const void *b64_decode_this, int decode_this_many_bytes){
 }
 
 typedef websocketpp::client<websocketpp::config::asio_client> client;
+client c;
 
 //https://github.com/obsproject/obs-websocket/blob/7893ae5caafecddb9589fe90719809b4f528f03e/docs/docs/partials/introduction.md
 void on_message(websocketpp::connection_hdl, client::message_ptr msg) {
@@ -117,13 +118,19 @@ void on_message(websocketpp::connection_hdl, client::message_ptr msg) {
         std::shared_ptr<websocketpp::config::core_client::message_type> tx_msg;
         tx_msg->set_opcode(websocketpp::frame::opcode::value::TEXT);
         
-        boost::property_tree::ptree::ptree root;
-        
+        boost::property_tree::ptree root;
+        boost::property_tree::ptree data;
+        root.put("op", 1);
+
+        data.put("rpcVersion", 1);
+        data.put("authentication", auth_b64);
+
+        root.put("d", data);
+        c.send()
     }
 }
 
 int main(int argc, char* argv[]) {
-    client c;
 
     std::string uri = "ws://localhost:4455";
 
