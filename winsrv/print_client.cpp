@@ -37,6 +37,7 @@
 #include <boost/json/src.hpp>
 #include <boost/json.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include <openssl/sha.h>
 #include <openssl/pem.h>
@@ -94,7 +95,7 @@ typedef websocketpp::client<websocketpp::config::asio_client> client;
 client c;
 
 //https://github.com/obsproject/obs-websocket/blob/7893ae5caafecddb9589fe90719809b4f528f03e/docs/docs/partials/introduction.md
-void on_message(websocketpp::connection_hdl, client::message_ptr msg) {
+void on_message(websocketpp::connection_hdl hdl, client::message_ptr msg) {
 	std::cout << msg->get_payload() << std::endl;
 
     auto json_parsed = boost::json::parse(msg->get_payload());
@@ -114,19 +115,21 @@ void on_message(websocketpp::connection_hdl, client::message_ptr msg) {
         std::string auth_str = secret_b64 + challenge;
         const char * auth_sha = sha256(auth_str.c_str());
         std::string auth_b64{base64encode(auth_sha, strlen(secret_sha))};
-
-        std::shared_ptr<websocketpp::config::core_client::message_type> tx_msg;
-        tx_msg->set_opcode(websocketpp::frame::opcode::value::TEXT);
         
         boost::property_tree::ptree root;
         boost::property_tree::ptree data;
-        root.put("op", 1);
+        root.put<int>("op", 1);
 
-        data.put("rpcVersion", 1);
+        data.put<int>("rpcVersion", 1);
         data.put("authentication", auth_b64);
 
-        root.put("d", data);
-        c.send()
+        root.add_child("d", data);
+
+        std::stringstream ss;
+        boost::property_tree::json_parser::write_json(ss, root);
+        std::cout << ss.str() << std::endl;
+
+        c.send(hdl, ss.str(), websocketpp::frame::opcode::text);
     }
 }
 

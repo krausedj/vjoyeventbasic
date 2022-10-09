@@ -16,6 +16,8 @@ project(eventforward)
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
+find_package(OpenSSL REQUIRED)
+
 add_library( vjoyinterface SHARED IMPORTED GLOBAL )
 set_property(TARGET vjoyinterface PROPERTY IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/vjoy/lib/amd64/vJoyInterface.dll")
 set_property(TARGET vjoyinterface PROPERTY IMPORTED_IMPLIB "${PROJECT_SOURCE_DIR}/vjoy/lib/amd64/vJoyInterface.lib")
@@ -27,4 +29,4 @@ target_link_libraries(app vjoyinterface winsockwrapper)
 
 add_executable(websock print_client.cpp)
 target_compile_features(websock PRIVATE cxx_std_17)
-target_link_libraries(websock ws2_32)
+target_link_libraries(websock ws2_32 OpenSSL::Crypto)
