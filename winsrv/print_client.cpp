@@ -24,7 +24,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
-
+#define ASIO_STANDALONE
+#include "boost_config.hpp"
 #include <websocketpp/config/asio_no_tls_client.hpp>
 #include <websocketpp/client.hpp>
 
@@ -33,27 +34,17 @@
 #include <sstream>
 #include <string>
 
-#define BOOST_JSON_STACK_BUFFER_SIZE 1024
-#include <boost/json/src.hpp>
-#include <boost/json.hpp>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
+#include <json/json.h>
 
 #include <openssl/sha.h>
 #include <openssl/pem.h>
-const char * sha256(const char * str)
+void sha256(const char * input, unsigned char * output)
 {
-    unsigned char hash[SHA256_DIGEST_LENGTH];
+    memset(output, 0 , SHA256_DIGEST_LENGTH);
     SHA256_CTX sha256;
     SHA256_Init(&sha256);
-    SHA256_Update(&sha256, str, strlen(str));
-    SHA256_Final(hash, &sha256);
-    std::stringstream ss;
-    for(int i = 0; i < SHA256_DIGEST_LENGTH; i++)
-    {
-        ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
-    }
-    return ss.str().c_str();
+    SHA256_Update(&sha256, input, strlen(input));
+    SHA256_Final(output, &sha256);
 }
 
 /* A BASE-64 ENCODER AND DECODER USING OPENSSL */
@@ -98,38 +89,48 @@ client c;
 void on_message(websocketpp::connection_hdl hdl, client::message_ptr msg) {
 	std::cout << msg->get_payload() << std::endl;
 
-    auto json_parsed = boost::json::parse(msg->get_payload());
+    Json::Value root;
+    Json::Reader reader;
+    bool parsingSuccessful = reader.parse( msg->get_payload(), root );
     //The obs op code is different then the websocket op code
     //  Websocket is like, TEXT or BINARY
     //    Which OBS treats as JSON or MsgPack (IDK the later)
     //  ObsOpCode is like, Hello (uncle leo), Identify, etc
-    int obs_op_code{boost::json::value_to<int>(json_parsed.at("op"))};
+    int obs_op_code{root["op"].asInt()};
     if (0 == obs_op_code){
         //Hello op code
         std::string password{"YuibGljTGcSpi450"};
-        std::string salt{boost::json::value_to<std::string>(json_parsed.at("d").at("authentication").at("salt"))};
-        std::string challenge{boost::json::value_to<std::string>(json_parsed.at("d").at("authentication").at("challenge"))};
+        std::string salt{root["d"]["authentication"]["salt"].asString()};
+        std::string challenge{root["d"]["authentication"]["challenge"].asString()};
         std::string pass_salt = password + salt;
-        const char * secret_sha = sha256(pass_salt.c_str());
-        std::string secret_b64{base64encode(secret_sha, strlen(secret_sha))};
+        unsigned char secret_sha[SHA256_DIGEST_LENGTH];
+        sha256(pass_salt.c_str(), secret_sha);
+        std::string secret_b64{base64encode(secret_sha, SHA256_DIGEST_LENGTH)};
         std::string auth_str = secret_b64 + challenge;
-        const char * auth_sha = sha256(auth_str.c_str());
-        std::string auth_b64{base64encode(auth_sha, strlen(secret_sha))};
+        unsigned char auth_sha[SHA256_DIGEST_LENGTH];
+        sha256(auth_str.c_str(), auth_sha);
+        std::string auth_b64{base64encode(auth_sha, SHA256_DIGEST_LENGTH)};
         
-        boost::property_tree::ptree root;
-        boost::property_tree::ptree data;
-        root.put<int>("op", 1);
+        std::cout << password << std::endl;
+        std::cout << salt << std::endl;
+        std::cout << challenge << std::endl;
+        std::cout << pass_salt << std::endl;
+        std::cout << secret_b64 << std::endl;
+        std::cout << auth_str << std::endl;
+        std::cout << auth_sha << std::endl;
+        std::cout << auth_b64 << std::endl;
+        
+        Json::Value response;
+        response["op"] = 1;
 
-        data.put<int>("rpcVersion", 1);
-        data.put("authentication", auth_b64);
+        response["d"]["rpcVersion"] = 1;
+        response["d"]["authentication"] = auth_b64;
 
-        root.add_child("d", data);
+        Json::FastWriter fastWriter;
+        std::string response_string = fastWriter.write(response);
 
-        std::stringstream ss;
-        boost::property_tree::json_parser::write_json(ss, root);
-        std::cout << ss.str() << std::endl;
-
-        c.send(hdl, ss.str(), websocketpp::frame::opcode::text);
+        std::cout << response_string << std::endl;
+        c.send(hdl, response_string, websocketpp::frame::opcode::text);
     }
 }
 

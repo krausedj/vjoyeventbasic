@@ -13,10 +13,15 @@ include_directories(../websocketpp)
 
 project(eventforward)
 
-find_package(Boost REQUIRED)
-include_directories(${Boost_INCLUDE_DIR})
+#find_package(Asio REQUIRED)
+#include_directories(${Asio_INCLUDE_DIR})
 
 find_package(OpenSSL REQUIRED)
+
+#JsonCpp
+#get_target_property(JSON_INC_PATH jsoncpp_lib INTERFACE_INCLUDE_DIRECTORIES)
+#include_directories(${JSON_INC_PATH})
+#/JsonCpp
 
 add_library( vjoyinterface SHARED IMPORTED GLOBAL )
 set_property(TARGET vjoyinterface PROPERTY IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/vjoy/lib/amd64/vJoyInterface.dll")
@@ -29,4 +34,4 @@ target_link_libraries(app vjoyinterface winsockwrapper)
 
 add_executable(websock print_client.cpp)
 target_compile_features(websock PRIVATE cxx_std_17)
-target_link_libraries(websock ws2_32 OpenSSL::Crypto)
+target_link_libraries(websock ws2_32 OpenSSL::Crypto jsoncpp)
