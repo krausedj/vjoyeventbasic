@@ -4,7 +4,9 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/../shared/**"
+                "${workspaceFolder}/../shared/**",
+                "${workspaceFolder}/../websocketpp/**",
+                "C:/msys64/usr/include"
             ],
             "defines": [
                 "_DEBUG",

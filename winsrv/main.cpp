@@ -1,6 +1,6 @@
 
 #include "vjoywrapper.h"
-#include "winsockwrapper.hpp"
+#include "winsockwrapper/winsockwrapper.hpp"
 #include "vjoy_event_net.hpp"
 #include <iostream>
 #include <unistd.h>
