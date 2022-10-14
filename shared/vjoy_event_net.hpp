@@ -73,6 +73,16 @@ typedef struct ScanKeyNetT_struct {
     uint8_t value[1];
 } ScanKeyNetT;
 
+typedef struct AckT_struct {
+    uint32_t cntr;
+    uint64_t ts;
+} AckT;
+
+typedef struct AckNetT_struct {
+    uint8_t cntr[4];
+    uint8_t ts[8];
+} AckNetT;
+
 inline void EventDump(InputEventT &input, InputEventNetT &output){
     int index;
     for(index = 0; index < sizeof(input.tv_sec); index++){
@@ -207,6 +217,28 @@ inline void HeaderLoad(HeaderT &output, HeaderNetT &input){
     output.length_inverse = 0;
     for(index = 0; index < sizeof(input.length_inverse); index++){
         output.length_inverse |= ((uint8_t)input.length_inverse[index]) << (index * 8);
+    }
+}
+
+inline void AckDump(AckT &input, AckNetT &output){
+    int index;
+    for(index = 0; index < sizeof(input.cntr); index++){
+        output.cntr[index] = (uint8_t)(input.cntr >> (index * 8));
+    }
+    for(index = 0; index < sizeof(input.ts); index++){
+        output.ts[index] = (uint8_t)(input.ts >> (index * 8));
+    }
+}
+
+inline void AckLoad(AckT &output, AckNetT &input){
+    int index;
+    output.cntr = 0;
+    for(index = 0; index < sizeof(input.cntr); index++){
+        output.cntr |= ((uint8_t)input.cntr[index]) << (index * 8);
+    }
+    output.ts = 0;
+    for(index = 0; index < sizeof(input.ts); index++){
+        output.ts |= ((uint8_t)input.ts[index]) << (index * 8);
     }
 }
 
