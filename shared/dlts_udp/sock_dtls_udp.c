@@ -59,14 +59,14 @@
 #include <openssl/rand.h>
 #include <openssl/opensslv.h>
 
-#include "sock_dlts_udp.h"
+#include "sock_dtls_udp.h"
 
 #define BUFFER_SIZE          (1<<16)
 #define COOKIE_SECRET_LENGTH 16
 
 #define DEFAULT_PORT 63245
 
-struct SockDltsUdpData{
+struct SockDtlsUdpData{
 	SSL *ssl;
     int verbose;
     int veryverbose;
@@ -302,7 +302,7 @@ int dtls_verify_callback (int ok, X509_STORE_CTX *ctx) {
 	return 1;
 }
 
-SockDltsUdp_Status SockDltsUdp_ServerWaitForConn(struct SockDltsUdpData * data){
+SockDtlsUdp_Status SockDtlsUdp_ServerWaitForConn(struct SockDtlsUdpData * data){
 #if WIN32
 	WSADATA wsaData;
 #endif
@@ -340,7 +340,7 @@ SockDltsUdp_Status SockDltsUdp_ServerWaitForConn(struct SockDltsUdpData * data){
 #endif
 			server_addr.s6.sin6_port = htons(data->port);
 		} else {
-			return SockDltsUdp_ERROR_LOCAL_ADDR;
+			return SockDtlsUdp_ERROR_LOCAL_ADDR;
 		}
 	}
 
@@ -376,7 +376,7 @@ SockDltsUdp_Status SockDltsUdp_ServerWaitForConn(struct SockDltsUdpData * data){
 	data->fd = socket(server_addr.ss.ss_family, SOCK_DGRAM, 0);
 	if (data->fd < 0) {
 		perror("socket");
-		return SockDltsUdp_ERROR_SOCKET;
+		return SockDtlsUdp_ERROR_SOCKET;
 	}
 
 #ifdef WIN32
@@ -391,13 +391,13 @@ SockDltsUdp_Status SockDltsUdp_ServerWaitForConn(struct SockDltsUdpData * data){
 	if (server_addr.ss.ss_family == AF_INET) {
 		if (bind(data->fd, (const struct sockaddr *) &server_addr, sizeof(struct sockaddr_in))) {
 			perror("bind");
-			return SockDltsUdp_ERROR_BIND;
+			return SockDtlsUdp_ERROR_BIND;
 		}
 	} else {
 		setsockopt(data->fd, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&off, sizeof(off));
 		if (bind(data->fd, (const struct sockaddr *) &server_addr, sizeof(struct sockaddr_in6))) {
 			perror("bind");
-			return SockDltsUdp_ERROR_BIND;
+			return SockDtlsUdp_ERROR_BIND;
 		}
 	}
 
@@ -414,18 +414,18 @@ SockDltsUdp_Status SockDltsUdp_ServerWaitForConn(struct SockDltsUdpData * data){
 
     SSL_set_bio(data->ssl, bio, bio);
     SSL_set_options(data->ssl, SSL_OP_COOKIE_EXCHANGE);
-
+printf("1\n");
     while (DTLSv1_listen(data->ssl, (BIO_ADDR *) &client_addr) <= 0);
-
+printf("2\n");
 	char addrbuf[INET6_ADDRSTRLEN];
 
 	OPENSSL_assert(client_addr.ss.ss_family == server_addr.ss.ss_family);
 	data->fd = socket(client_addr.ss.ss_family, SOCK_DGRAM, 0);
 	if (data->fd < 0) {
 		perror("socket");
-		return SockDltsUdp_ERROR_SOCKET;
+		return SockDtlsUdp_ERROR_SOCKET;
 	}
-
+printf("3\n");
 #ifdef WIN32
 	setsockopt(data->fd, SOL_SOCKET, SO_REUSEADDR, (const char*) &on, (socklen_t) sizeof(on));
 #else
@@ -438,33 +438,35 @@ SockDltsUdp_Status SockDltsUdp_ServerWaitForConn(struct SockDltsUdpData * data){
 		case AF_INET:
 			if (bind(data->fd, (const struct sockaddr *) &server_addr, sizeof(struct sockaddr_in))) {
 				perror("bind");
-				return SockDltsUdp_ERROR_BIND;
+				return SockDtlsUdp_ERROR_BIND;
 			}
 			if (connect(data->fd, (struct sockaddr *) &client_addr, sizeof(struct sockaddr_in))) {
 				perror("connect");
-				return SockDltsUdp_ERROR_CONNECT;
+				return SockDtlsUdp_ERROR_CONNECT;
 			}
 			break;
 		case AF_INET6:
 			setsockopt(data->fd, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&off, sizeof(off));
 			if (bind(data->fd, (const struct sockaddr *) &server_addr, sizeof(struct sockaddr_in6))) {
 				perror("bind");
-				return SockDltsUdp_ERROR_BIND;
+				return SockDtlsUdp_ERROR_BIND;
 			}
 			if (connect(data->fd, (struct sockaddr *) &client_addr, sizeof(struct sockaddr_in6))) {
 				perror("connect");
-				return SockDltsUdp_ERROR_CONNECT;
+				return SockDtlsUdp_ERROR_CONNECT;
 			}
 			break;
 		default:
 			OPENSSL_assert(0);
 			break;
 	}
-
+printf("4\n");
 	/* Set new fd and set BIO to connected */
 	BIO_set_fd(SSL_get_rbio(data->ssl), data->fd, BIO_NOCLOSE);
 	BIO_ctrl(SSL_get_rbio(data->ssl), BIO_CTRL_DGRAM_SET_CONNECTED, 0, &client_addr.ss);
-
+printf("%i\n", client_addr.s4.sin_port);
+printf("%i\n", client_addr.s4.sin_addr);
+printf("5\n");
 	/* Finish handshake */
 	do { ret = SSL_accept(data->ssl); }
 	while (ret == 0);
@@ -472,9 +474,9 @@ SockDltsUdp_Status SockDltsUdp_ServerWaitForConn(struct SockDltsUdpData * data){
         char buf[BUFFER_SIZE];
 		perror("SSL_accept");
 		printf("%s\n", ERR_error_string(ERR_get_error(), buf));
-		return SockDltsUdp_ERROR_SSL_ACCEPT;
+		return SockDtlsUdp_ERROR_SSL_ACCEPT;
 	}
-
+printf("6\n");
     timeout = data->startup_timeout;
 	BIO_ctrl(SSL_get_rbio(data->ssl), BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
 
@@ -489,7 +491,7 @@ SockDltsUdp_Status SockDltsUdp_ServerWaitForConn(struct SockDltsUdpData * data){
 					ntohs(client_addr.s6.sin6_port));
 		}
 	}
-
+printf("7\n");
 	if (data->veryverbose && SSL_get_peer_certificate(data->ssl)) {
 		printf ("------------------------------------------------------------\n");
 		X509_NAME_print_ex_fp(stdout, X509_get_subject_name(SSL_get_peer_certificate(data->ssl)),
@@ -498,11 +500,11 @@ SockDltsUdp_Status SockDltsUdp_ServerWaitForConn(struct SockDltsUdpData * data){
 		printf ("\n------------------------------------------------------------\n\n");
 	}
 
-	return SockDltsUdp_ERROR_NONE;
+	return SockDtlsUdp_ERROR_NONE;
 }
 
-SockDltsUdp_Status SockDltsUdp_Recv(struct SockDltsUdpData * data, void * buffer, const int buffer_len, int * rx_len){
-    SockDltsUdp_Status status = SockDltsUdp_ERROR_UNKNOWN;
+SockDtlsUdp_Status SockDtlsUdp_Recv(struct SockDtlsUdpData * data, void * buffer, const int buffer_len, int * rx_len){
+    SockDtlsUdp_Status status = SockDtlsUdp_ERROR_UNKNOWN;
     struct timeval timeout = data->rx_timeout;
 	BIO_ctrl(SSL_get_rbio(data->ssl), BIO_CTRL_DGRAM_SET_RECV_TIMEOUT, 0, &timeout);
     *rx_len = (int)SSL_read(data->ssl, buffer, buffer_len);
@@ -513,7 +515,7 @@ SockDltsUdp_Status SockDltsUdp_Recv(struct SockDltsUdpData * data, void * buffer
             if (data->verbose) {
                 printf("read %d bytes\n", (int) *rx_len);
             }
-			status = SockDltsUdp_ERROR_NONE;
+			status = SockDtlsUdp_ERROR_NONE;
             break;
         case SSL_ERROR_WANT_READ:
             /* Handle socket timeouts */
@@ -523,37 +525,37 @@ SockDltsUdp_Status SockDltsUdp_Recv(struct SockDltsUdpData * data, void * buffer
 			else{
 				data->num_errors++;
 			}
-			status = SockDltsUdp_SSL_ERROR_WANT_READ;
+			status = SockDtlsUdp_SSL_ERROR_WANT_READ;
             break;
         case SSL_ERROR_ZERO_RETURN:
-			status = SockDltsUdp_SSL_ERROR_ZERO_RETURN;
+			status = SockDtlsUdp_SSL_ERROR_ZERO_RETURN;
 			data->num_errors++;
             break;
         case SSL_ERROR_SYSCALL:
             printf("Socket read error: ");
 			data->num_errors++;
             if (!handle_socket_error()){
-				status = SockDltsUdp_SSL_ERROR_SYSCALL_UNHANDLED;
+				status = SockDtlsUdp_SSL_ERROR_SYSCALL_UNHANDLED;
 			}
 			else {
-				status = SockDltsUdp_SSL_ERROR_SYSCALL_HANDLED;
+				status = SockDtlsUdp_SSL_ERROR_SYSCALL_HANDLED;
 			}
             break;
         case SSL_ERROR_SSL:
             printf("SSL read error: ");
             printf("%s (%d)\n", ERR_error_string(ERR_get_error(), buffer), SSL_get_error(data->ssl, *rx_len));
-            status = SockDltsUdp_SSL_ERROR_SSL;
+            status = SockDtlsUdp_SSL_ERROR_SSL;
             break;
         default:
             printf("Unexpected error while reading!\n");
-            status = SockDltsUdp_ERROR_UNKNOWN;
+            status = SockDtlsUdp_ERROR_UNKNOWN;
             break;
     }
 
     return status;
 }
 
-SockDltsUdp_Status SockDltsUdp_ClientConn(struct SockDltsUdpData * data){
+SockDtlsUdp_Status SockDtlsUdp_ClientConn(struct SockDtlsUdpData * data){
 	int retval;
 	char buf[BUFFER_SIZE];
 	char addrbuf[INET6_ADDRSTRLEN];
@@ -577,17 +579,17 @@ SockDltsUdp_Status SockDltsUdp_ClientConn(struct SockDltsUdpData * data){
 	if (inet_pton(AF_INET, data->remote_address, &remote_addr.s4.sin_addr) == 1) {
 		remote_addr.s4.sin_family = AF_INET;
 #ifdef HAVE_SIN_LEN
-		data->remote_addr.s4.sin_len = sizeof(struct sockaddr_in);
+		remote_addr.s4.sin_len = sizeof(struct sockaddr_in);
 #endif
 		remote_addr.s4.sin_port = htons(data->port);
 	} else if (inet_pton(AF_INET6, data->remote_address, &remote_addr.s6.sin6_addr) == 1) {
 		remote_addr.s6.sin6_family = AF_INET6;
 #ifdef HAVE_SIN6_LEN
-		data->remote_addr.s6.sin6_len = sizeof(struct sockaddr_in6);
+		remote_addr.s6.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 		remote_addr.s6.sin6_port = htons(data->port);
 	} else {
-		return SockDltsUdp_ERROR_REMOTE_ADDR;
+		return SockDtlsUdp_ERROR_REMOTE_ADDR;
 	}
 
 #ifdef WIN32
@@ -597,7 +599,7 @@ SockDltsUdp_Status SockDltsUdp_ClientConn(struct SockDltsUdpData * data){
 	data->fd = socket(remote_addr.ss.ss_family, SOCK_DGRAM, 0);
 	if (data->fd < 0) {
 		perror("socket");
-		return SockDltsUdp_ERROR_SOCKET;
+		return SockDtlsUdp_ERROR_SOCKET;
 	}
 
 	if (strlen(data->local_address) > 0) {
@@ -614,18 +616,18 @@ SockDltsUdp_Status SockDltsUdp_ClientConn(struct SockDltsUdpData * data){
 #endif
 			local_addr.s6.sin6_port = htons(0);
 		} else {
-			return SockDltsUdp_ERROR_LOCAL_ADDR;
+			return SockDtlsUdp_ERROR_LOCAL_ADDR;
 		}
 		OPENSSL_assert(remote_addr.ss.ss_family == local_addr.ss.ss_family);
 		if (local_addr.ss.ss_family == AF_INET) {
 			if (bind(data->fd, (const struct sockaddr *) &local_addr, sizeof(struct sockaddr_in))) {
 				perror("bind");
-				return SockDltsUdp_ERROR_BIND;
+				return SockDtlsUdp_ERROR_BIND;
 			}
 		} else {
 			if (bind(data->fd, (const struct sockaddr *) &local_addr, sizeof(struct sockaddr_in6))) {
 				perror("bind");
-				return SockDltsUdp_ERROR_BIND;
+				return SockDtlsUdp_ERROR_BIND;
 			}
 		}
 	}
@@ -647,6 +649,7 @@ SockDltsUdp_Status SockDltsUdp_ClientConn(struct SockDltsUdpData * data){
 	SSL_CTX_set_verify_depth (ctx, 2);
 	SSL_CTX_set_read_ahead(ctx, 1);
 
+
 	data->ssl = SSL_new(ctx);
 
 	/* Create BIO, connect and set to already connected */
@@ -654,12 +657,12 @@ SockDltsUdp_Status SockDltsUdp_ClientConn(struct SockDltsUdpData * data){
 	if (remote_addr.ss.ss_family == AF_INET) {
 		if (connect(data->fd, (struct sockaddr *) &remote_addr, sizeof(struct sockaddr_in))) {
 			perror("connect");
-            return SockDltsUdp_ERROR_CONNECT;
+            return SockDtlsUdp_ERROR_CONNECT;
 		}
 	} else {
 		if (connect(data->fd, (struct sockaddr *) &remote_addr, sizeof(struct sockaddr_in6))) {
 			perror("connect");
-            return SockDltsUdp_ERROR_CONNECT;
+            return SockDtlsUdp_ERROR_CONNECT;
 		}
 	}
 	BIO_ctrl(bio, BIO_CTRL_DGRAM_SET_CONNECTED, 0, &remote_addr.ss);
@@ -671,39 +674,39 @@ SockDltsUdp_Status SockDltsUdp_ClientConn(struct SockDltsUdpData * data){
 		switch (SSL_get_error(data->ssl, retval)) {
 			case SSL_ERROR_ZERO_RETURN:
 				fprintf(stderr, "SSL_connect failed with SSL_ERROR_ZERO_RETURN\n");
-                return SockDltsUdp_SSL_ERROR_ZERO_RETURN;
+                return SockDtlsUdp_SSL_ERROR_ZERO_RETURN;
 				break;
 			case SSL_ERROR_WANT_READ:
 				fprintf(stderr, "SSL_connect failed with SSL_ERROR_WANT_READ\n");
-                return SockDltsUdp_SSL_ERROR_WANT_READ;
+                return SockDtlsUdp_SSL_ERROR_WANT_READ;
 				break;
 			case SSL_ERROR_WANT_WRITE:
 				fprintf(stderr, "SSL_connect failed with SSL_ERROR_WANT_WRITE\n");
-                return SockDltsUdp_SSL_ERROR_WANT_WRITE;
+                return SockDtlsUdp_SSL_ERROR_WANT_WRITE;
 				break;
 			case SSL_ERROR_WANT_CONNECT:
 				fprintf(stderr, "SSL_connect failed with SSL_ERROR_WANT_CONNECT\n");
-                return SockDltsUdp_SSL_ERROR_WANT_CONNECT;
+                return SockDtlsUdp_SSL_ERROR_WANT_CONNECT;
 				break;
 			case SSL_ERROR_WANT_ACCEPT:
 				fprintf(stderr, "SSL_connect failed with SSL_ERROR_WANT_ACCEPT\n");
-                return SockDltsUdp_SSL_ERROR_WANT_ACCEPT;
+                return SockDtlsUdp_SSL_ERROR_WANT_ACCEPT;
 				break;
 			case SSL_ERROR_WANT_X509_LOOKUP:
 				fprintf(stderr, "SSL_connect failed with SSL_ERROR_WANT_X509_LOOKUP\n");
-                return SockDltsUdp_SSL_ERROR_WANT_X509_LOOKUP;
+                return SockDtlsUdp_SSL_ERROR_WANT_X509_LOOKUP;
 				break;
 			case SSL_ERROR_SYSCALL:
 				fprintf(stderr, "SSL_connect failed with SSL_ERROR_SYSCALL\n");
-                return SockDltsUdp_SSL_ERROR_SYSCALL_UNHANDLED;
+                return SockDtlsUdp_SSL_ERROR_SYSCALL_UNHANDLED;
 				break;
 			case SSL_ERROR_SSL:
 				fprintf(stderr, "SSL_connect failed with SSL_ERROR_SSL\n");
-                return SockDltsUdp_ERROR_SSL_ACCEPT;
+                return SockDtlsUdp_ERROR_SSL_ACCEPT;
 				break;
 			default:
 				fprintf(stderr, "SSL_connect failed with unknown error\n");
-                return SockDltsUdp_ERROR_UNKNOWN;
+                return SockDtlsUdp_ERROR_UNKNOWN;
 				break;
 		}
 	}
@@ -730,11 +733,11 @@ SockDltsUdp_Status SockDltsUdp_ClientConn(struct SockDltsUdpData * data){
 		printf ("\n------------------------------------------------------------\n\n");
 	}
 
-    return SockDltsUdp_ERROR_NONE;
+    return SockDtlsUdp_ERROR_NONE;
 }
 
-SockDltsUdp_Status SockDltsUdp_Send(struct SockDltsUdpData * data, const void * buffer, const int buffer_len){
-    SockDltsUdp_Status status = SockDltsUdp_ERROR_UNKNOWN;
+SockDtlsUdp_Status SockDtlsUdp_Send(struct SockDtlsUdpData * data, const void * buffer, const int buffer_len){
+    SockDtlsUdp_Status status = SockDtlsUdp_ERROR_UNKNOWN;
     int len = SSL_write(data->ssl, buffer, buffer_len);
 
     switch (SSL_get_error(data->ssl, len)) {
@@ -742,23 +745,23 @@ SockDltsUdp_Status SockDltsUdp_Send(struct SockDltsUdpData * data, const void * 
             if (data->verbose) {
                 printf("wrote %d bytes\n", (int) len);
             }
-            status = SockDltsUdp_ERROR_NONE;
+            status = SockDtlsUdp_ERROR_NONE;
             break;
         case SSL_ERROR_WANT_WRITE:
             /* Just try again later */
-            status = SockDltsUdp_SSL_ERROR_WANT_WRITE;
+            status = SockDtlsUdp_SSL_ERROR_WANT_WRITE;
             break;
         case SSL_ERROR_WANT_READ:
             /* continue with reading */
-            status = SockDltsUdp_SSL_ERROR_WANT_READ;
+            status = SockDtlsUdp_SSL_ERROR_WANT_READ;
             break;
         case SSL_ERROR_SYSCALL:
             printf("Socket write error: ");
             if (!handle_socket_error()){
-                status = SockDltsUdp_SSL_ERROR_SYSCALL_UNHANDLED;
+                status = SockDtlsUdp_SSL_ERROR_SYSCALL_UNHANDLED;
             }
             else {
-                status = SockDltsUdp_SSL_ERROR_SYSCALL_HANDLED;
+                status = SockDtlsUdp_SSL_ERROR_SYSCALL_HANDLED;
             }
             //reading = 0;
             break;
@@ -767,19 +770,19 @@ SockDltsUdp_Status SockDltsUdp_Send(struct SockDltsUdpData * data, const void * 
 				char buf[BUFFER_SIZE];
 				printf("SSL write error: ");
 				printf("%s (%d)\n", ERR_error_string(ERR_get_error(), buf), SSL_get_error(data->ssl, len));
-				status = SockDltsUdp_SSL_ERROR_SSL;
+				status = SockDtlsUdp_SSL_ERROR_SSL;
 			}
             break;
         default:
             printf("Unexpected error while writing!\n");
-            status = SockDltsUdp_ERROR_UNKNOWN;
+            status = SockDtlsUdp_ERROR_UNKNOWN;
             break;
     }
 
     return status;
 }
 
-void SockDltsUdp_Close(struct SockDltsUdpData * data){
+void SockDtlsUdp_Close(struct SockDtlsUdpData * data){
 	SSL_shutdown(data->ssl);
 
 #ifdef WIN32
@@ -795,8 +798,9 @@ void SockDltsUdp_Close(struct SockDltsUdpData * data){
 #endif
 }
 
-struct SockDltsUdpData * SockDltsUdp_CreateServer(char * local_address, int port){
-	struct SockDltsUdpData * data = malloc(sizeof(struct SockDltsUdpData));
+struct SockDtlsUdpData * SockDtlsUdp_CreateServer(char * local_address, int port){
+	struct SockDtlsUdpData * data = malloc(sizeof(struct SockDtlsUdpData));
+	memset(data, 0, sizeof(struct SockDtlsUdpData));
 	/* copy inputs */
 	strncpy(data->local_address, local_address, INET6_ADDRSTRLEN+1);
 	data->port = port;
@@ -805,11 +809,16 @@ struct SockDltsUdpData * SockDltsUdp_CreateServer(char * local_address, int port
 	data->startup_timeout.tv_usec = 0;
 	data->rx_timeout.tv_sec = 0;
 	data->rx_timeout.tv_usec = 250000;
+	
+	data->verbose = 1;
+	data->veryverbose = 1;
+
 	return data;
 }
 
-struct SockDltsUdpData * SockDltsUdp_CreateClient(char * remote_address, int port){
-	struct SockDltsUdpData * data = malloc(sizeof(struct SockDltsUdpData));
+struct SockDtlsUdpData * SockDtlsUdp_CreateClient(char * remote_address, int port){
+	struct SockDtlsUdpData * data = malloc(sizeof(struct SockDtlsUdpData));
+	memset(data, 0, sizeof(struct SockDtlsUdpData));
 	/* copy inputs */
 	strncpy(data->remote_address, remote_address, INET6_ADDRSTRLEN+1);
 	data->port = port;
@@ -818,13 +827,17 @@ struct SockDltsUdpData * SockDltsUdp_CreateClient(char * remote_address, int por
 	data->startup_timeout.tv_usec = 0;
 	data->rx_timeout.tv_sec = 0;
 	data->rx_timeout.tv_usec = 250000;
+
+	data->verbose = 1;
+	data->veryverbose = 1;
+
 	return data;
 }
 
-void SockDltsUdp_Destroy(struct SockDltsUdpData * data){
+void SockDtlsUdp_Destroy(struct SockDtlsUdpData * data){
 	free(data);
 }
 
-int SockDltsUdp_IsSslShutdown(struct SockDltsUdpData * data){
+int SockDtlsUdp_IsSslShutdown(struct SockDtlsUdpData * data){
     return (!(SSL_get_shutdown(data->ssl) & SSL_RECEIVED_SHUTDOWN));
 }

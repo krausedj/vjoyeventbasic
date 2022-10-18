@@ -1,5 +1,5 @@
 
-#include "sock_dlts_udp.h"
+#include "sock_dtls_udp.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -7,10 +7,15 @@
 
 int main()
 {
-    const char * buffer = "hello world!\n";
-    struct SockDltsUdpData * data = SockDltsUdp_CreateClient("127.0.0.1", 56666);
-    SockDltsUdp_ClientConn(data);
-    SockDltsUdp_Send(data, buffer, strlen(buffer)+1);
-    SockDltsUdp_Close(data);
-    SockDltsUdp_Destroy(data);
+    const char buffer[BUF_SIZE] = "hello world!\n";
+    printf("Creating client\n");
+    struct SockDtlsUdpData * data = SockDtlsUdp_CreateClient("192.168.35.111", 56666);
+    printf("Connecting\n");
+    SockDtlsUdp_ClientConn(data);
+    printf("Sending Data\n");
+    SockDtlsUdp_Send(data, buffer, strlen(buffer));
+    printf("Close\n");
+    SockDtlsUdp_Close(data);
+    printf("Destroy\n");
+    SockDtlsUdp_Destroy(data);
 }

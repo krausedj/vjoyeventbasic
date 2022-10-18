@@ -34,6 +34,10 @@
  *   Original file: https://raw.githubusercontent.com/nplab/DTLS-Examples/master/src/dtls_udp_echo.c
  *   Modification are to enable this to be a bit more abstracted for use in additional applications.
  *   Conditions from original copyright holders apply.
+ * 
+ * ===================================================================
+ * 	 This file is largely unmodified and only exists for reference
+ * ===================================================================
  */
 
 #ifdef WIN32
